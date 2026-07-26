@@ -1,5 +1,6 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
+# import config
 
 # Flask 서버 객체를 만듭니다.
 app = Flask(__name__)
@@ -60,3 +61,5 @@ if __name__ == "__main__":
         port=5000,
         debug=True,
     )
+
+    #가나다라마바사
