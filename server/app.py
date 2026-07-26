@@ -46,8 +46,8 @@ def get_services():
                     "name": "마을 소식",
                 },
                 {
-                    "id": "welfare",
-                    "name": "복지·안전 정보",
+                    "id": "weather",
+                    "name": "날씨",
                 },
             ],
         }
