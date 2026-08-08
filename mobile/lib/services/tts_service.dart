@@ -61,12 +61,12 @@ class TtsService {
     //
     // 숫자가 작을수록 천천히 읽습니다.
     // 더 빠르게 들리도록 속도를 높였습니다.
-    await _flutterTts.setSpeechRate(1.2);
+    await _flutterTts.setSpeechRate(0.7);
 
     // 목소리 높낮이를 설정합니다.
     //
     // 1.0은 기본 높이입니다.
-    await _flutterTts.setPitch(1.0);
+    await _flutterTts.setPitch(0.8);
 
     // 모든 설정이 완료되었음을 저장합니다.
     _isInitialized = true;
