@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/tts_service.dart';
 import '../widgets/hold_to_speak.dart';
+import 'weather_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -38,6 +39,18 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const WeatherScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.wb_sunny_outlined),
+              label: const Text('날씨 보기'),
+            ),
+            const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () async {
                 await TtsService.instance.speak('이음 앱 테스트입니다.');
