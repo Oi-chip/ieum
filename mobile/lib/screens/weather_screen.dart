@@ -9,10 +9,8 @@ class WeatherScreen extends StatefulWidget {
 }
 
 class _WeatherScreenState extends State<WeatherScreen> {
-  // TODO(Team B): region.json의 격자좌표(nx, ny)를 사용해 실제 날짜/데이터로 교체
   DateTime _selectedDate = DateTime.now();
 
-  // TODO(총괄+Team B): flutter_tts 패키지를 pubspec.yaml에 추가한 뒤
   // 아래 함수에서 실제 TTS 재생 로직으로 교체하세요.
   // 서버(/api/weather)가 "짧고 자연스러운 한 문장"을 함께 내려주면
   // 그 문장을 그대로 TTS에 넘기는 방식을 기획서 2.6에서 권장하고 있습니다.
@@ -31,7 +29,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final data = _WeatherData.dummy(); // TODO: 실제 API 응답으로 교체
+    final data = _WeatherData.dummy();
 
     return Scaffold(
       appBar: AppBar(
@@ -261,33 +259,38 @@ class _HourlyCard extends StatelessWidget {
             ? Border.all(color: theme.colorScheme.primary, width: 2)
             : null,
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            hour.label,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: isNow ? FontWeight.w600 : FontWeight.w400,
-              color: isNow ? theme.colorScheme.primary : Colors.grey.shade700,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              hour.label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: isNow ? FontWeight.w600 : FontWeight.w400,
+                color:
+                    isNow ? theme.colorScheme.primary : Colors.grey.shade700,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Icon(
-            hour.icon,
-            size: 30,
-            color: isNow ? theme.colorScheme.primary : Colors.grey.shade600,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${hour.temperatureC}°',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: isNow ? theme.colorScheme.primary : null,
+            const SizedBox(height: 6),
+            Icon(
+              hour.icon,
+              size: 30,
+              color: isNow ? theme.colorScheme.primary : Colors.grey.shade600,
             ),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              '${hour.temperatureC}°',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isNow ? theme.colorScheme.primary : null,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
