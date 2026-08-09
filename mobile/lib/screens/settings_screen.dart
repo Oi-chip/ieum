@@ -201,7 +201,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // 지역 설정 박스
               InkWell(
                 onTap: (){
-                  // 지역 선택 화면을 연결
+                  // 지역 선택 화면 연결
                 },
                 child: Container(
                   width: double.infinity,
