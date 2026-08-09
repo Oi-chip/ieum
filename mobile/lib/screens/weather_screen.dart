@@ -1,18 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 날씨 화면 (어르신 친화적 재설계)
-///
-/// 설계 원칙
-/// - 아이콘만으로 정보를 전달하지 않는다. 모든 아이콘 옆에는 반드시 텍스트를 붙인다.
-///   (예: 미세먼지를 스마일 표정으로만 표시하지 않고 "좋음/보통/나쁨" 글자를 함께 표시)
-/// - 가장 중요한 정보(현재 기온)를 화면에서 가장 크게 보여준다.
-/// - 버튼과 터치 영역은 최소 44~48px 이상으로 크게 만든다.
-/// - 화면을 위아래로 나눠 스크롤을 강요하지 않고, 한 화면 안에 핵심 정보를 담는다.
-/// - TTS(음성 안내) 버튼을 화면 하단에 항상 보이게 배치해 글자를 읽기 어려운
-///   사용자도 정보를 들을 수 있게 한다. (기획서 2.6 TTS 음성안내 기능과 연동 지점)
-///
-/// 1주차(더미 데이터) 단계 화면입니다. 실제 API 연동 시
-/// `_WeatherData.dummy()` 자리를 `ApiService.fetchWeather()` 호출로 교체하세요.
+
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen({super.key});
 
@@ -21,18 +9,8 @@ class WeatherScreen extends StatefulWidget {
 }
 
 class _WeatherScreenState extends State<WeatherScreen> {
-  // 봉화군의 region.json 격자 좌표. 기상청 단기예보 요청 시 사용한다.
-  static const int _gridX = 90;
-  static const int _gridY = 106;
-
-  late DateTime _selectedDate;
-
-  @override
-  void initState() {
-    super.initState();
-    final now = DateTime.now();
-    _selectedDate = DateTime(now.year, now.month, now.day);
-  }
+  // TODO(Team B): region.json의 격자좌표(nx, ny)를 사용해 실제 날짜/데이터로 교체
+  DateTime _selectedDate = DateTime.now();
 
   // TODO(총괄+Team B): flutter_tts 패키지를 pubspec.yaml에 추가한 뒤
   // 아래 함수에서 실제 TTS 재생 로직으로 교체하세요.
@@ -102,9 +80,6 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 날짜 이동: 화살표 버튼을 48px 원형으로 키워 터치하기 쉽게 만든다.
-// ---------------------------------------------------------------------------
 class _DateNavigator extends StatelessWidget {
   const _DateNavigator({
     required this.date,
@@ -175,9 +150,6 @@ class _RoundIconButton extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 현재 날씨: 기온을 가장 크게(44px), 날씨 아이콘 + 상태 텍스트를 함께 표시.
-// ---------------------------------------------------------------------------
 class _CurrentWeatherCard extends StatelessWidget {
   const _CurrentWeatherCard({required this.data});
 
@@ -203,10 +175,6 @@ class _CurrentWeatherCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 미세먼지: 이모지 대신 색상 배지 + 텍스트로 표시. 색상만으로 판단하지 않도록
-// "좋음/보통/나쁨/매우나쁨" 글자를 항상 함께 보여준다.
-// ---------------------------------------------------------------------------
 enum _AirQualityLevel { good, normal, bad, veryBad }
 
 class _AirQualityBadge extends StatelessWidget {
@@ -250,9 +218,6 @@ class _AirQualityBadge extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 시간별 예보: 작은 원 대신 76px 폭 카드로 확대. 현재 시각은 강조 표시.
-// ---------------------------------------------------------------------------
 class _HourlyForecastRow extends StatelessWidget {
   const _HourlyForecastRow({required this.hours});
 
@@ -328,9 +293,6 @@ class _HourlyCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 상세 정보(강수확률/바람 등): 2열 그리드로 압축해 스크롤 의존도를 낮춘다.
-// ---------------------------------------------------------------------------
 class _DetailGrid extends StatelessWidget {
   const _DetailGrid({required this.data});
 
@@ -422,9 +384,6 @@ class _DetailTile extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 음성 안내 버튼: 화면 하단에 항상 보이도록 배치, 높이 52px로 크게.
-// ---------------------------------------------------------------------------
 class _SpeakButton extends StatelessWidget {
   const _SpeakButton({required this.onPressed});
 
