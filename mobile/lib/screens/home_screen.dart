@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/tts_service.dart';
 import '../widgets/hold_to_speak.dart';
+import 'settings_screen.dart';
 import 'weather_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -49,6 +50,18 @@ class HomeScreen extends StatelessWidget {
               },
               icon: const Icon(Icons.wb_sunny_outlined),
               label: const Text('날씨 보기'),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => const SettingsScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.settings_outlined),
+              label: const Text('설정'),
             ),
             const SizedBox(height: 12),
             ElevatedButton(
