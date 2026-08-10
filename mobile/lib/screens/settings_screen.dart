@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../data/region_data.dart';
+import 'province_selection_screen.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -200,8 +203,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               
               // 지역 설정 박스
               InkWell(
-                onTap: (){
-                  // 지역 선택 화면 연결
+                onTap: () async {
+                  final String? region = await Navigator.push<String>(
+                    context,
+                    MaterialPageRoute(
+                       builder: (context) {
+                        return const ProvinceSelectionScreen(
+                          districtsByProvince: districtsByProvince,
+                        );
+                       },
+                    ),
+                  );
+
+                   if (region != null && mounted) {
+                    setState(() {
+                      selectedRegion = region;
+                    });
+                   }
                 },
                 child: Container(
                   width: double.infinity,
