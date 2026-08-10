@@ -210,7 +210,7 @@ class BusServiceTest(unittest.TestCase):
         with self.assertRaises(BusServiceError):
             _get_response_items(payload)
 
-    @patch("services.bus_service.TAGO_API_KEY", "test-key")
+    @patch("services.bus_service.data_go_API_KEY", "test-key")
     @patch("services.bus_service.requests.get")
     def test_get_nearby_stops_converts_and_sorts_data(self, mock_get):
         response = Mock()
@@ -254,7 +254,7 @@ class BusServiceTest(unittest.TestCase):
         self.assertEqual(stops[0]["number"], "1")
         self.assertIn("distance_m", stops[0])
 
-    @patch("services.bus_service.TAGO_API_KEY", "test-key")
+    @patch("services.bus_service.data_go_API_KEY", "test-key")
     @patch("services.bus_service.requests.get")
     def test_get_bus_arrivals_converts_minutes_and_sorts_data(self, mock_get):
         response = Mock()
@@ -300,7 +300,7 @@ class BusServiceTest(unittest.TestCase):
         self.assertEqual(arrivals[0]["arrival_minutes"], 2)
         self.assertEqual(arrivals[1]["arrival_minutes"], 6)
 
-    @patch("services.bus_service.TAGO_API_KEY", "test-key")
+    @patch("services.bus_service.data_go_API_KEY", "test-key")
     @patch("services.bus_service.requests.get")
     def test_get_bus_route_combines_info_and_ordered_stops(self, mock_get):
         route_response = Mock()
@@ -373,7 +373,7 @@ class BusServiceTest(unittest.TestCase):
         )
         self.assertEqual(mock_get.call_count, 2)
 
-    @patch("services.bus_service.TAGO_API_KEY", "test-key")
+    @patch("services.bus_service.data_go_API_KEY", "test-key")
     @patch("services.bus_service.requests.get")
     def test_get_stop_routes_converts_data(self, mock_get):
         response = Mock()

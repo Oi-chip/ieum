@@ -3,9 +3,9 @@ from math import asin, ceil, cos, radians, sin, sqrt
 import requests
 
 if __package__ == "server.services":
-    from ..config import TAGO_API_KEY
+    from ..config import data_go_API_KEY
 else:
-    from config import TAGO_API_KEY
+    from config import data_go_API_KEY
 
 
 BUS_STATION_API_URL = (
@@ -115,11 +115,11 @@ def _get_all_response_items(url, params):
 
 
 def _request_bus_api(url, params):
-    if not TAGO_API_KEY:
-        raise BusConfigurationError("TAGO_API_KEY가 설정되지 않았습니다.")
+    if not data_go_API_KEY:
+        raise BusConfigurationError("data_go_API_KEY가 설정되지 않았습니다.")
 
     request_params = {
-        "serviceKey": TAGO_API_KEY,
+        "serviceKey": data_go_API_KEY,
         "pageNo": 1,
         "numOfRows": 20,
         "_type": "json",

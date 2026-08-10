@@ -27,6 +27,6 @@ def load_region():
         return json.load(file)
 
 
-TAGO_API_KEY = os.getenv("TAGO_API_KEY")
+data_go_API_KEY = os.getenv("data_go_API_KEY")
 HOSPITAL_API_KEY = os.getenv("HOSPITAL_API_KEY")
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
