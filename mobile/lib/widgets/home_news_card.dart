@@ -37,7 +37,7 @@ class HomeNewsCard extends StatelessWidget {
                   child: Text(
                     '지역 소식',
                     style: TextStyle(
-                      fontSize: 30,
+                      fontSize: 33,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -73,7 +73,7 @@ class HomeNewsCard extends StatelessWidget {
                     child: Text(
                       newsList[i].title,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 21,
                       ),
                     ),
                   ),

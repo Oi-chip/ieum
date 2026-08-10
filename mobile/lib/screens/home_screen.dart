@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../mock_data/home_mock_data.dart';
 
+import '../widgets/app_top_bar.dart';
 import '../widgets/home_bus_card.dart';
 import '../widgets/home_hospital_card.dart';
 import '../widgets/home_news_card.dart';
@@ -10,12 +11,47 @@ import '../widgets/voice_button.dart';
 
 import 'bus_screen.dart';
 import 'hospital_screen.dart';
-//import 'news_screen.dart';
-//import 'settings_screen.dart';
-//import 'weather_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  // ==========================================
+  // 아직 구현되지 않은 기능 안내
+  // ==========================================
+  void _showTemporaryMessage(
+    BuildContext context,
+    String message,
+  ) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
+  // ==========================================
+  // 버스 화면 이동
+  // ==========================================
+  void _goToBusScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const BusScreen(),
+      ),
+    );
+  }
+
+  // ==========================================
+  // 병원 화면 이동
+  // ==========================================
+  void _goToHospitalScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const HospitalScreen(),
+      ),
+    );
+  }
 
   // ==========================================
   // SOS 선택창
@@ -144,43 +180,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
-  // 아직 구현되지 않은 기능 안내
-  // ==========================================
-  void _showTemporaryMessage(
-    BuildContext context,
-    String message,
-  ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
-  }
-
-  // ==========================================
-  // 화면 이동
-  // ==========================================
-  void _goToBusScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const BusScreen(),
-      ),
-    );
-  }
-
-  void _goToHospitalScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const HospitalScreen(),
-      ),
-    );
-  }
-
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -190,116 +189,56 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           children: [
             // ==========================================
-            // 상단 영역
-            // 나가기 / 이음 / 설정
+            // 공통 상단 바
+            // ==========================================
+            AppTopBar(
+              onExitTap: () {
+                _showTemporaryMessage(
+                  context,
+                  '나가기 기능은 추후 구현합니다. (임시)',
+                );
+              },
+              onSettingsTap: () {
+                _showTemporaryMessage(
+                  context,
+                  '설정 화면은 B팀과 연계 예정입니다. (임시)',
+                );
+              },
+            ),
+
+            // ==========================================
+            // 현재 위치
+            // 나중에 GPS 데이터로 교체 예정
             // ==========================================
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 16,
-                12,
+                6,
                 16,
-                8,
+                10,
               ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      // 나가기
-                      SizedBox(
-                        width: 90,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            Navigator.maybePop(context);
-                          },
-                          child: const Text(
-                            '나가기',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // 앱 이름
-                      const Expanded(
-                        child: Center(
-                          child: Text(
-                            '이음',
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // 설정
-                      SizedBox(
-                        width: 100,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            _showTemporaryMessage(context, '설정 화면은 B팀과 연계 예정(임시)');
-                          },
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical :12,
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.settings,
-                                size: 18,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                '설정',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ==========================================
-                  // 현재 위치
-                  // 나중에 GPS 데이터로 교체할 부분
-                  // ==========================================
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          size: 24,
-                        ),
-
-                        const SizedBox(width: 6),
-
-                        Expanded(
-                          child: Text(
-                            '현재 위치 : ${mockLocation.locationName}',
-                            style: const TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on,
+                      size: 24,
                     ),
-                  ),
-                ],
+
+                    const SizedBox(width: 6),
+
+                    Expanded(
+                      child: Text(
+                        '현재 위치 : ${mockLocation.locationName}',
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -315,7 +254,7 @@ class HomeScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    // 버스
+                    // 버스 카드
                     HomeBusCard(
                       bus: mockBus,
                       onTap: () {
@@ -325,7 +264,7 @@ class HomeScreen extends StatelessWidget {
 
                     const SizedBox(height: 14),
 
-                    // 병원
+                    // 병원 카드
                     HomeHospitalCard(
                       hospital: mockHospital,
                       onTap: () {
@@ -338,21 +277,27 @@ class HomeScreen extends StatelessWidget {
 
                     const SizedBox(height: 14),
 
-                    // 날씨
+                    // 날씨 카드
                     HomeWeatherCard(
                       weather: mockWeather,
                       onTap: () {
-                        _showTemporaryMessage(context, '날씨 화면은 B팀과 연계 예정(임시)');
+                        _showTemporaryMessage(
+                          context,
+                          '날씨 화면은 B팀과 연계 예정입니다. (임시)',
+                        );
                       },
                     ),
 
                     const SizedBox(height: 14),
 
-                    // 지역 소식
+                    // 지역 소식 카드
                     HomeNewsCard(
                       newsList: mockNewsList,
                       onTap: () {
-                        _showTemporaryMessage(context, '지역소식 화면은 B팀과 연계 예정(임시)');
+                        _showTemporaryMessage(
+                          context,
+                          '지역 소식 화면은 B팀과 연계 예정입니다. (임시)',
+                        );
                       },
                     ),
                   ],
