@@ -1,14 +1,32 @@
 import json
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv()
 
-def load_region(region_id="bonghwa"):
-    path = f"../region_data/Bonghwa/region.json"
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+# config.py가 들어 있는 server 폴더
+SERVER_DIR = Path(__file__).resolve().parent
 
-TAGO_API_KEY = os.getenv("TAGO_API_KEY")
+# ieum 프로젝트 최상위 폴더
+PROJECT_DIR = SERVER_DIR.parent
+
+# server/.env 파일을 불러옵니다.
+load_dotenv(SERVER_DIR / ".env")
+
+
+def load_region():
+    region_path = (
+        PROJECT_DIR
+        / "region_data"
+        / "Bonghwa"
+        / "region.json"
+    )
+
+    with region_path.open(encoding="utf-8") as file:
+        return json.load(file)
+
+
+data_go_API_KEY = os.getenv("data_go_API_KEY")
 HOSPITAL_API_KEY = os.getenv("HOSPITAL_API_KEY")
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
