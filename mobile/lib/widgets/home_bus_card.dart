@@ -60,7 +60,7 @@ class HomeBusCard extends StatelessWidget {
                   Text(
                     bus.busNumber,
                     style: const TextStyle(
-                      fontSize: 28,
+                      fontSize: 29,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -79,7 +79,7 @@ class HomeBusCard extends StatelessWidget {
                   Text(
                     bus.arrivalTime,
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

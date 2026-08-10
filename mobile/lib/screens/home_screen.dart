@@ -236,11 +236,17 @@ class HomeScreen extends StatelessWidget {
 
                       // 설정
                       SizedBox(
-                        width: 90,
+                        width: 100,
                         child: OutlinedButton(
                           onPressed: () {
                             _showTemporaryMessage(context, '설정 화면은 B팀과 연계 예정(임시)');
                           },
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical :12,
+                            ),
+                          ),
                           child: const Row(
                             mainAxisAlignment:
                                 MainAxisAlignment.center,

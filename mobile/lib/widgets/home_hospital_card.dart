@@ -62,7 +62,7 @@ class HomeHospitalCard extends StatelessWidget {
                   Text(
                     hospital.hospitalName,
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 25,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
