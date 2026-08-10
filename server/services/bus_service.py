@@ -2,7 +2,10 @@ from math import asin, ceil, cos, radians, sin, sqrt
 
 import requests
 
-from config import TAGO_API_KEY
+if __package__ == "server.services":
+    from ..config import TAGO_API_KEY
+else:
+    from config import TAGO_API_KEY
 
 
 BUS_STATION_API_URL = (
@@ -65,6 +68,9 @@ def _get_response_body(payload):
 
     if str(header.get("resultCode")) != "00":
         raise BusServiceError("버스 API가 오류 응답을 반환했습니다.")
+
+    if not isinstance(body, dict):
+        raise BusServiceError("버스 API 응답 형식이 올바르지 않습니다.")
 
     return body
 

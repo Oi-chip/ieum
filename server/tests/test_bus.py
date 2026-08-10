@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from app import app
 from services.bus_service import (
     BusServiceError,
+    _get_response_items,
     get_bus_arrivals,
     get_bus_route,
     get_nearby_stops,
@@ -198,6 +199,17 @@ class BusRouteTest(unittest.TestCase):
 
 
 class BusServiceTest(unittest.TestCase):
+    def test_response_items_rejects_null_body(self):
+        payload = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": None,
+            }
+        }
+
+        with self.assertRaises(BusServiceError):
+            _get_response_items(payload)
+
     @patch("services.bus_service.TAGO_API_KEY", "test-key")
     @patch("services.bus_service.requests.get")
     def test_get_nearby_stops_converts_and_sorts_data(self, mock_get):

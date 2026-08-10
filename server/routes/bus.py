@@ -2,14 +2,24 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 
-from services.bus_service import (
-    BusConfigurationError,
-    BusServiceError,
-    get_bus_arrivals,
-    get_bus_route,
-    get_nearby_stops,
-    get_stop_routes,
-)
+if __package__ == "server.routes":
+    from ..services.bus_service import (
+        BusConfigurationError,
+        BusServiceError,
+        get_bus_arrivals,
+        get_bus_route,
+        get_nearby_stops,
+        get_stop_routes,
+    )
+else:
+    from services.bus_service import (
+        BusConfigurationError,
+        BusServiceError,
+        get_bus_arrivals,
+        get_bus_route,
+        get_nearby_stops,
+        get_stop_routes,
+    )
 
 
 bus_blueprint = Blueprint("bus", __name__, url_prefix="/api/bus")

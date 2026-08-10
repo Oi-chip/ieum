@@ -1,7 +1,10 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-from routes.bus import bus_blueprint
+if __package__:
+    from .routes.bus import bus_blueprint
+else:
+    from routes.bus import bus_blueprint
 
 # Flask 서버 객체를 만듭니다.
 app = Flask(__name__)
