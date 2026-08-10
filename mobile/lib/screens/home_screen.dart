@@ -179,32 +179,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _goToWeatherScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const WeatherScreen(),
-      ),
-    );
-  }
 
-  void _goToNewsScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const NewsScreen(),
-      ),
-    );
-  }
-
-  void _goToSettingsScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SettingsScreen(),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -264,7 +239,7 @@ class HomeScreen extends StatelessWidget {
                         width: 90,
                         child: OutlinedButton(
                           onPressed: () {
-                            _goToSettingsScreen(context, '설정 화면은 B팀과 연계 예정(임시)');
+                            _showTemporaryMessage(context, '설정 화면은 B팀과 연계 예정(임시)');
                           },
                           child: const Row(
                             mainAxisAlignment:
@@ -361,7 +336,7 @@ class HomeScreen extends StatelessWidget {
                     HomeWeatherCard(
                       weather: mockWeather,
                       onTap: () {
-                        _goToWeatherScreen(context, '날씨 화면은 B팀과 연계 예정(임시)');
+                        _showTemporaryMessage(context, '날씨 화면은 B팀과 연계 예정(임시)');
                       },
                     ),
 
@@ -371,7 +346,7 @@ class HomeScreen extends StatelessWidget {
                     HomeNewsCard(
                       newsList: mockNewsList,
                       onTap: () {
-                        _goToNewsScreen(context, '날씨 화면은 B팀과 연계 예정(임시)');
+                        _showTemporaryMessage(context, '지역소식 화면은 B팀과 연계 예정(임시)');
                       },
                     ),
                   ],
