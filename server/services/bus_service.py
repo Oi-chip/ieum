@@ -1,4 +1,4 @@
-from math import asin, cos, radians, sin, sqrt
+from math import asin, ceil, cos, radians, sin, sqrt
 
 import requests
 
@@ -8,6 +8,10 @@ from config import TAGO_API_KEY
 BUS_STATION_API_URL = (
     "https://apis.data.go.kr/1613000/"
     "BusSttnInfoInqireService/getCrdntPrxmtSttnList"
+)
+BUS_ARRIVAL_API_URL = (
+    "https://apis.data.go.kr/1613000/"
+    "ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList"
 )
 REQUEST_TIMEOUT_SECONDS = 10
 EARTH_RADIUS_METERS = 6_371_000
@@ -60,30 +64,36 @@ def _get_response_items(payload):
     return []
 
 
-def get_nearby_stops(latitude, longitude):
-    """현재 위치에서 반경 500m 안의 버스정류장을 가까운 순서로 반환합니다."""
+def _request_bus_api(url, params):
     if not TAGO_API_KEY:
         raise BusConfigurationError("TAGO_API_KEY가 설정되지 않았습니다.")
 
-    params = {
+    request_params = {
         "serviceKey": TAGO_API_KEY,
         "pageNo": 1,
         "numOfRows": 20,
         "_type": "json",
-        "gpsLati": latitude,
-        "gpsLong": longitude,
+        **params,
     }
 
     try:
         response = requests.get(
-            BUS_STATION_API_URL,
-            params=params,
+            url,
+            params=request_params,
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        payload = response.json()
+        return response.json()
     except (requests.RequestException, ValueError) as error:
         raise BusServiceError("버스 API 요청에 실패했습니다.") from error
+
+
+def get_nearby_stops(latitude, longitude):
+    """현재 위치에서 반경 500m 안의 버스정류장을 가까운 순서로 반환합니다."""
+    payload = _request_bus_api(BUS_STATION_API_URL, {
+        "gpsLati": latitude,
+        "gpsLong": longitude,
+    })
 
     stops = []
     for item in _get_response_items(payload):
@@ -114,3 +124,33 @@ def get_nearby_stops(latitude, longitude):
         })
 
     return sorted(stops, key=lambda stop: stop["distance_m"])
+
+
+def get_bus_arrivals(city_code, stop_id):
+    """선택한 정류장에 도착할 버스를 빠른 순서로 반환합니다."""
+    payload = _request_bus_api(BUS_ARRIVAL_API_URL, {
+        "cityCode": city_code,
+        "nodeId": stop_id,
+    })
+
+    arrivals = []
+    for item in _get_response_items(payload):
+        try:
+            arrival_seconds = int(item["arrtime"])
+            remaining_stops = int(item["arrprevstationcnt"])
+            route_id = str(item["routeid"])
+            bus_number = str(item["routeno"])
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        arrivals.append({
+            "route_id": route_id,
+            "bus_number": bus_number,
+            "route_type": item.get("routetp"),
+            "remaining_stops": remaining_stops,
+            "arrival_seconds": arrival_seconds,
+            "arrival_minutes": ceil(arrival_seconds / 60),
+            "vehicle_type": item.get("vehicletp"),
+        })
+
+    return sorted(arrivals, key=lambda arrival: arrival["arrival_seconds"])

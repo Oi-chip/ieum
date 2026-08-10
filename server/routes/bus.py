@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from services.bus_service import (
     BusConfigurationError,
     BusServiceError,
+    get_bus_arrivals,
     get_nearby_stops,
 )
 
@@ -53,6 +54,32 @@ def _parse_location():
     return (latitude, longitude), None
 
 
+def _parse_stop():
+    city_code = request.args.get("city_code", "").strip()
+    stop_id = request.args.get("stop_id", "").strip()
+
+    if not city_code or not stop_id:
+        return None, _error_response(
+            "MISSING_STOP",
+            "도시 코드와 정류장 ID를 모두 입력해 주세요.",
+            400,
+        )
+
+    if (
+        not city_code.isdigit()
+        or len(city_code) > 9
+        or not stop_id.isalnum()
+        or len(stop_id) > 30
+    ):
+        return None, _error_response(
+            "INVALID_STOP",
+            "도시 코드 또는 정류장 ID가 올바르지 않습니다.",
+            400,
+        )
+
+    return (city_code, stop_id), None
+
+
 @bus_blueprint.get("/nearby")
 def nearby_bus_stops():
     location, error = _parse_location()
@@ -82,6 +109,42 @@ def nearby_bus_stops():
             "stops": stops,
         },
         "message": "가까운 버스정류장을 조회했습니다.",
+        "source": "국토교통부 TAGO",
+        "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    })
+
+
+@bus_blueprint.get("/arrivals")
+def bus_arrivals():
+    stop, error = _parse_stop()
+    if error is not None:
+        return error
+
+    city_code, stop_id = stop
+
+    try:
+        arrivals = get_bus_arrivals(city_code, stop_id)
+    except BusConfigurationError:
+        return _error_response(
+            "BUS_API_KEY_MISSING",
+            "서버에 버스 API 키가 설정되지 않았습니다.",
+            500,
+        )
+    except BusServiceError:
+        return _error_response(
+            "BUS_DATA_UNAVAILABLE",
+            "버스 도착정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            502,
+        )
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "city_code": city_code,
+            "stop_id": stop_id,
+            "arrivals": arrivals,
+        },
+        "message": "버스 도착정보를 조회했습니다.",
         "source": "국토교통부 TAGO",
         "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     })

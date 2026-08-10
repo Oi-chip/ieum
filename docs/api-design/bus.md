@@ -64,3 +64,61 @@ GET /api/bus/nearby?latitude=36.3&longitude=127.3
 | `INVALID_LOCATION` | 위도 또는 경도의 형식이나 범위가 잘못됨 | 400 |
 | `BUS_API_KEY_MISSING` | 서버에 버스 API 키가 설정되지 않음 | 500 |
 | `BUS_DATA_UNAVAILABLE` | 외부 버스 API를 사용할 수 없음 | 502 |
+
+## 정류장별 버스 도착정보 조회
+
+### 요청
+
+- 방식: `GET`
+- 주소: `/api/bus/arrivals`
+
+### 요청값
+
+| 이름 | 의미 | 필수 |
+|---|---|---|
+| `city_code` | 가까운 정류장 조회에서 받은 도시 코드 | 필수 |
+| `stop_id` | 가까운 정류장 조회에서 받은 정류장 ID | 필수 |
+
+### 요청 예시
+
+```text
+GET /api/bus/arrivals?city_code=25&stop_id=DJB8001793
+```
+
+### 성공 응답 예시
+
+```json
+{
+  "success": true,
+  "data": {
+    "city_code": "25",
+    "stop_id": "DJB8001793",
+    "arrivals": [
+      {
+        "route_id": "DJB30300002",
+        "bus_number": "5",
+        "route_type": "마을버스",
+        "remaining_stops": 3,
+        "arrival_seconds": 125,
+        "arrival_minutes": 3,
+        "vehicle_type": "저상버스"
+      }
+    ]
+  },
+  "message": "버스 도착정보를 조회했습니다.",
+  "source": "국토교통부 TAGO",
+  "updated_at": "2026-08-10T08:30:00Z"
+}
+```
+
+`arrival_minutes`는 초 단위 도착예정시간을 올림한 값입니다. 예를 들어 125초는 3분으로 표시합니다.
+운행 중인 버스가 없거나 해당 지역이 실시간 도착정보를 제공하지 않으면 `arrivals`가 빈 목록일 수 있습니다.
+
+### 오류 코드
+
+| 코드 | 의미 | HTTP 상태 |
+|---|---|---|
+| `MISSING_STOP` | 도시 코드 또는 정류장 ID가 없음 | 400 |
+| `INVALID_STOP` | 도시 코드 또는 정류장 ID 형식이 잘못됨 | 400 |
+| `BUS_API_KEY_MISSING` | 서버에 버스 API 키가 설정되지 않음 | 500 |
+| `BUS_DATA_UNAVAILABLE` | 외부 도착정보 API를 사용할 수 없음 | 502 |

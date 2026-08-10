@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from app import app
-from services.bus_service import BusServiceError, get_nearby_stops
+from services.bus_service import BusServiceError, get_bus_arrivals, get_nearby_stops
 
 
 class BusRouteTest(unittest.TestCase):
@@ -55,6 +55,52 @@ class BusRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 502)
         self.assertEqual(response.get_json()["error"]["code"], "BUS_DATA_UNAVAILABLE")
 
+    @patch("routes.bus.get_bus_arrivals")
+    def test_bus_arrivals_success(self, mock_get_bus_arrivals):
+        mock_get_bus_arrivals.return_value = [{
+            "route_id": "DJB30300002",
+            "bus_number": "5",
+            "route_type": "마을버스",
+            "remaining_stops": 3,
+            "arrival_seconds": 125,
+            "arrival_minutes": 3,
+            "vehicle_type": "저상버스",
+        }]
+
+        response = self.client.get(
+            "/api/bus/arrivals?city_code=25&stop_id=DJB8001793"
+        )
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["data"]["arrivals"][0]["arrival_minutes"], 3)
+
+    def test_bus_arrivals_requires_city_code_and_stop_id(self):
+        response = self.client.get("/api/bus/arrivals?city_code=25")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"]["code"], "MISSING_STOP")
+
+    def test_bus_arrivals_rejects_invalid_city_code(self):
+        response = self.client.get(
+            "/api/bus/arrivals?city_code=wrong&stop_id=DJB8001793"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"]["code"], "INVALID_STOP")
+
+    @patch("routes.bus.get_bus_arrivals")
+    def test_bus_arrivals_handles_external_api_error(self, mock_get_bus_arrivals):
+        mock_get_bus_arrivals.side_effect = BusServiceError("test error")
+
+        response = self.client.get(
+            "/api/bus/arrivals?city_code=25&stop_id=DJB8001793"
+        )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.get_json()["error"]["code"], "BUS_DATA_UNAVAILABLE")
+
 
 class BusServiceTest(unittest.TestCase):
     @patch("services.bus_service.TAGO_API_KEY", "test-key")
@@ -100,6 +146,52 @@ class BusServiceTest(unittest.TestCase):
         self.assertEqual(stops[0]["city_code"], "25")
         self.assertEqual(stops[0]["number"], "1")
         self.assertIn("distance_m", stops[0])
+
+    @patch("services.bus_service.TAGO_API_KEY", "test-key")
+    @patch("services.bus_service.requests.get")
+    def test_get_bus_arrivals_converts_minutes_and_sorts_data(self, mock_get):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "response": {
+                "header": {
+                    "resultCode": "00",
+                    "resultMsg": "NORMAL SERVICE.",
+                },
+                "body": {
+                    "items": {
+                        "item": [
+                            {
+                                "routeid": "LATE",
+                                "routeno": "20",
+                                "routetp": "간선버스",
+                                "arrprevstationcnt": 5,
+                                "arrtime": 301,
+                                "vehicletp": "일반버스",
+                            },
+                            {
+                                "routeid": "SOON",
+                                "routeno": "10",
+                                "routetp": "마을버스",
+                                "arrprevstationcnt": 1,
+                                "arrtime": 61,
+                                "vehicletp": "저상버스",
+                            },
+                        ]
+                    }
+                },
+            }
+        }
+        mock_get.return_value = response
+
+        arrivals = get_bus_arrivals("25", "DJB8001793")
+
+        self.assertEqual(
+            [arrival["route_id"] for arrival in arrivals],
+            ["SOON", "LATE"],
+        )
+        self.assertEqual(arrivals[0]["arrival_minutes"], 2)
+        self.assertEqual(arrivals[1]["arrival_minutes"], 6)
 
 
 if __name__ == "__main__":
