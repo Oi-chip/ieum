@@ -13,8 +13,18 @@ BUS_ARRIVAL_API_URL = (
     "https://apis.data.go.kr/1613000/"
     "ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList"
 )
+BUS_ROUTE_INFO_API_URL = (
+    "https://apis.data.go.kr/1613000/"
+    "BusRouteInfoInqireService/getRouteInfoIem"
+)
+BUS_ROUTE_STOPS_API_URL = (
+    "https://apis.data.go.kr/1613000/"
+    "BusRouteInfoInqireService/getRouteAcctoThrghSttnList"
+)
 REQUEST_TIMEOUT_SECONDS = 10
 EARTH_RADIUS_METERS = 6_371_000
+ROUTE_STOPS_PAGE_SIZE = 100
+MAX_ROUTE_STOPS_PAGES = 10
 
 
 class BusServiceError(Exception):
@@ -41,7 +51,7 @@ def _distance_in_meters(start_latitude, start_longitude, end_latitude, end_longi
     return round(distance)
 
 
-def _get_response_items(payload):
+def _get_response_body(payload):
     try:
         response_data = payload["response"]
         header = response_data["header"]
@@ -51,6 +61,12 @@ def _get_response_items(payload):
 
     if str(header.get("resultCode")) != "00":
         raise BusServiceError("버스 API가 오류 응답을 반환했습니다.")
+
+    return body
+
+
+def _get_response_items(payload):
+    body = _get_response_body(payload)
 
     items_container = body.get("items") or {}
     if not isinstance(items_container, dict):
@@ -62,6 +78,30 @@ def _get_response_items(payload):
     if isinstance(items, list):
         return items
     return []
+
+
+def _get_all_response_items(url, params):
+    all_items = []
+
+    for page_number in range(1, MAX_ROUTE_STOPS_PAGES + 1):
+        payload = _request_bus_api(url, {
+            **params,
+            "pageNo": page_number,
+            "numOfRows": ROUTE_STOPS_PAGE_SIZE,
+        })
+        page_items = _get_response_items(payload)
+        all_items.extend(page_items)
+
+        body = _get_response_body(payload)
+        try:
+            total_count = int(body.get("totalCount", len(all_items)))
+        except (TypeError, ValueError):
+            total_count = len(all_items)
+
+        if len(all_items) >= total_count or not page_items:
+            return all_items
+
+    raise BusServiceError("노선 정류장 목록이 허용된 페이지 수를 초과했습니다.")
 
 
 def _request_bus_api(url, params):
@@ -154,3 +194,91 @@ def get_bus_arrivals(city_code, stop_id):
         })
 
     return sorted(arrivals, key=lambda arrival: arrival["arrival_seconds"])
+
+
+def _format_bus_time(value):
+    if value is None:
+        return None
+
+    digits = str(value).strip()
+    if not digits.isdigit() or len(digits) > 4:
+        return None
+
+    digits = digits.zfill(4)
+    return f"{digits[:2]}:{digits[2:]}"
+
+
+def _optional_integer(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def get_bus_route(city_code, route_id):
+    """노선 기본정보와 노선이 지나가는 정류장 전체를 반환합니다."""
+    route_payload = _request_bus_api(BUS_ROUTE_INFO_API_URL, {
+        "cityCode": city_code,
+        "routeId": route_id,
+    })
+    route_items = _get_response_items(route_payload)
+
+    if not route_items:
+        return None
+
+    item = route_items[0]
+    try:
+        route = {
+            "id": str(item["routeid"]),
+            "number": str(item["routeno"]),
+            "type": item.get("routetp"),
+            "start_stop": item.get("startnodenm"),
+            "end_stop": item.get("endnodenm"),
+            "first_bus_time": _format_bus_time(item.get("startvehicletime")),
+            "last_bus_time": _format_bus_time(item.get("endvehicletime")),
+            "weekday_interval_minutes": _optional_integer(item.get("intervaltime")),
+            "saturday_interval_minutes": _optional_integer(item.get("intervalsattime")),
+            "sunday_interval_minutes": _optional_integer(item.get("intervalsuntime")),
+        }
+    except (KeyError, TypeError) as error:
+        raise BusServiceError("노선 기본정보 형식이 올바르지 않습니다.") from error
+
+    stop_items = _get_all_response_items(BUS_ROUTE_STOPS_API_URL, {
+        "cityCode": city_code,
+        "routeId": route_id,
+    })
+
+    stops = []
+    for stop_item in stop_items:
+        try:
+            stop = {
+                "id": str(stop_item["nodeid"]),
+                "name": str(stop_item["nodenm"]),
+                "order": int(stop_item["nodeord"]),
+                "number": (
+                    str(stop_item["nodeno"])
+                    if stop_item.get("nodeno") is not None
+                    else None
+                ),
+                "latitude": _optional_float(stop_item.get("gpslati")),
+                "longitude": _optional_float(stop_item.get("gpslong")),
+                "direction_code": (
+                    str(stop_item["updowncd"])
+                    if stop_item.get("updowncd") is not None
+                    else None
+                ),
+            }
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        stops.append(stop)
+
+    route["stops"] = sorted(stops, key=lambda stop: stop["order"])
+    return route

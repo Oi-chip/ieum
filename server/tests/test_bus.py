@@ -2,7 +2,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 from app import app
-from services.bus_service import BusServiceError, get_bus_arrivals, get_nearby_stops
+from services.bus_service import (
+    BusServiceError,
+    get_bus_arrivals,
+    get_bus_route,
+    get_nearby_stops,
+)
 
 
 class BusRouteTest(unittest.TestCase):
@@ -101,6 +106,59 @@ class BusRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 502)
         self.assertEqual(response.get_json()["error"]["code"], "BUS_DATA_UNAVAILABLE")
 
+    @patch("routes.bus.get_bus_route")
+    def test_bus_route_success(self, mock_get_bus_route):
+        mock_get_bus_route.return_value = {
+            "id": "DJB30300002",
+            "number": "2",
+            "type": "급행버스",
+            "start_stop": "봉산동",
+            "end_stop": "대전역동광장",
+            "first_bus_time": "05:45",
+            "last_bus_time": "22:30",
+            "weekday_interval_minutes": 12,
+            "saturday_interval_minutes": 12,
+            "sunday_interval_minutes": 16,
+            "stops": [],
+        }
+
+        response = self.client.get(
+            "/api/bus/route?city_code=25&route_id=DJB30300002"
+        )
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["data"]["route"]["first_bus_time"], "05:45")
+
+    def test_bus_route_requires_city_code_and_route_id(self):
+        response = self.client.get("/api/bus/route?city_code=25")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"]["code"], "MISSING_ROUTE")
+
+    @patch("routes.bus.get_bus_route")
+    def test_bus_route_returns_not_found(self, mock_get_bus_route):
+        mock_get_bus_route.return_value = None
+
+        response = self.client.get(
+            "/api/bus/route?city_code=25&route_id=UNKNOWN"
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["error"]["code"], "BUS_ROUTE_NOT_FOUND")
+
+    @patch("routes.bus.get_bus_route")
+    def test_bus_route_handles_external_api_error(self, mock_get_bus_route):
+        mock_get_bus_route.side_effect = BusServiceError("test error")
+
+        response = self.client.get(
+            "/api/bus/route?city_code=25&route_id=DJB30300002"
+        )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.get_json()["error"]["code"], "BUS_DATA_UNAVAILABLE")
+
 
 class BusServiceTest(unittest.TestCase):
     @patch("services.bus_service.TAGO_API_KEY", "test-key")
@@ -192,6 +250,79 @@ class BusServiceTest(unittest.TestCase):
         )
         self.assertEqual(arrivals[0]["arrival_minutes"], 2)
         self.assertEqual(arrivals[1]["arrival_minutes"], 6)
+
+    @patch("services.bus_service.TAGO_API_KEY", "test-key")
+    @patch("services.bus_service.requests.get")
+    def test_get_bus_route_combines_info_and_ordered_stops(self, mock_get):
+        route_response = Mock()
+        route_response.raise_for_status.return_value = None
+        route_response.json.return_value = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": {
+                            "routeid": "DJB30300002",
+                            "routeno": 2,
+                            "routetp": "급행버스",
+                            "startnodenm": "봉산동",
+                            "endnodenm": "대전역동광장",
+                            "startvehicletime": "0545",
+                            "endvehicletime": 2230,
+                            "intervaltime": 12,
+                            "intervalsattime": 12,
+                            "intervalsuntime": 16,
+                        }
+                    }
+                },
+            }
+        }
+
+        stops_response = Mock()
+        stops_response.raise_for_status.return_value = None
+        stops_response.json.return_value = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": [
+                            {
+                                "nodeid": "SECOND",
+                                "nodenm": "두 번째 정류장",
+                                "nodeno": 2,
+                                "nodeord": 2,
+                                "gpslati": 36.2,
+                                "gpslong": 127.2,
+                                "updowncd": 0,
+                            },
+                            {
+                                "nodeid": "FIRST",
+                                "nodenm": "첫 번째 정류장",
+                                "nodeno": 1,
+                                "nodeord": 1,
+                                "gpslati": 36.1,
+                                "gpslong": 127.1,
+                                "updowncd": 0,
+                            },
+                        ]
+                    },
+                    "numOfRows": 100,
+                    "pageNo": 1,
+                    "totalCount": 2,
+                },
+            }
+        }
+        mock_get.side_effect = [route_response, stops_response]
+
+        route = get_bus_route("25", "DJB30300002")
+
+        self.assertEqual(route["first_bus_time"], "05:45")
+        self.assertEqual(route["last_bus_time"], "22:30")
+        self.assertEqual(
+            [stop["id"] for stop in route["stops"]],
+            ["FIRST", "SECOND"],
+        )
+        self.assertEqual(mock_get.call_count, 2)
 
 
 if __name__ == "__main__":
