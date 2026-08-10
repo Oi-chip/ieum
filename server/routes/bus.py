@@ -8,6 +8,7 @@ from services.bus_service import (
     get_bus_arrivals,
     get_bus_route,
     get_nearby_stops,
+    get_stop_routes,
 )
 
 
@@ -214,6 +215,42 @@ def bus_route():
             "route": route,
         },
         "message": "버스 노선정보를 조회했습니다.",
+        "source": "국토교통부 TAGO",
+        "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    })
+
+
+@bus_blueprint.get("/stop-routes")
+def stop_routes():
+    stop, error = _parse_stop()
+    if error is not None:
+        return error
+
+    city_code, stop_id = stop
+
+    try:
+        routes = get_stop_routes(city_code, stop_id)
+    except BusConfigurationError:
+        return _error_response(
+            "BUS_API_KEY_MISSING",
+            "서버에 버스 API 키가 설정되지 않았습니다.",
+            500,
+        )
+    except BusServiceError:
+        return _error_response(
+            "BUS_DATA_UNAVAILABLE",
+            "경유 버스 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            502,
+        )
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "city_code": city_code,
+            "stop_id": stop_id,
+            "routes": routes,
+        },
+        "message": "정류장을 지나는 버스 목록을 조회했습니다.",
         "source": "국토교통부 TAGO",
         "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     })

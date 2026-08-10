@@ -192,3 +192,59 @@ GET /api/bus/route?city_code=25&route_id=DJB30300002
 | `BUS_ROUTE_NOT_FOUND` | 해당 노선을 찾을 수 없음 | 404 |
 | `BUS_API_KEY_MISSING` | 서버에 버스 API 키가 설정되지 않음 | 500 |
 | `BUS_DATA_UNAVAILABLE` | 외부 노선정보 API를 사용할 수 없음 | 502 |
+
+## 정류장별 경유 버스 목록 조회
+
+### 요청
+
+- 방식: `GET`
+- 주소: `/api/bus/stop-routes`
+
+### 요청값
+
+| 이름 | 의미 | 필수 |
+|---|---|---|
+| `city_code` | 가까운 정류장 조회에서 받은 도시 코드 | 필수 |
+| `stop_id` | 가까운 정류장 조회에서 받은 정류장 ID | 필수 |
+
+### 요청 예시
+
+```text
+GET /api/bus/stop-routes?city_code=37410&stop_id=TSB371000038
+```
+
+### 성공 응답 예시
+
+```json
+{
+  "success": true,
+  "data": {
+    "city_code": "37410",
+    "stop_id": "TSB371000038",
+    "routes": [
+      {
+        "route_id": "TSB371000047",
+        "bus_number": "34",
+        "route_type": "농어촌(일반)버스",
+        "start_stop": "봉화공용터미널",
+        "end_stop": "봉화공용터미널"
+      }
+    ]
+  },
+  "message": "정류장을 지나는 버스 목록을 조회했습니다.",
+  "source": "국토교통부 TAGO",
+  "updated_at": "2026-08-10T08:30:00Z"
+}
+```
+
+정류장을 지나는 노선이 없거나 해당 지역에서 데이터를 제공하지 않으면 `routes`가 빈 목록일 수 있습니다.
+목록에서 받은 `route_id`와 `city_code`로 `/api/bus/route`를 호출하면 노선 상세정보를 조회할 수 있습니다.
+
+### 오류 코드
+
+| 코드 | 의미 | HTTP 상태 |
+|---|---|---|
+| `MISSING_STOP` | 도시 코드 또는 정류장 ID가 없음 | 400 |
+| `INVALID_STOP` | 도시 코드 또는 정류장 ID 형식이 잘못됨 | 400 |
+| `BUS_API_KEY_MISSING` | 서버에 버스 API 키가 설정되지 않음 | 500 |
+| `BUS_DATA_UNAVAILABLE` | 외부 경유노선 API를 사용할 수 없음 | 502 |

@@ -7,6 +7,7 @@ from services.bus_service import (
     get_bus_arrivals,
     get_bus_route,
     get_nearby_stops,
+    get_stop_routes,
 )
 
 
@@ -154,6 +155,42 @@ class BusRouteTest(unittest.TestCase):
 
         response = self.client.get(
             "/api/bus/route?city_code=25&route_id=DJB30300002"
+        )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.get_json()["error"]["code"], "BUS_DATA_UNAVAILABLE")
+
+    @patch("routes.bus.get_stop_routes")
+    def test_stop_routes_success(self, mock_get_stop_routes):
+        mock_get_stop_routes.return_value = [{
+            "route_id": "TSB371000001",
+            "bus_number": "25",
+            "route_type": "농어촌(일반)버스",
+            "start_stop": "봉화공용터미널",
+            "end_stop": "봉화공용터미널",
+        }]
+
+        response = self.client.get(
+            "/api/bus/stop-routes?city_code=37410&stop_id=TSB371000038"
+        )
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["data"]["routes"][0]["bus_number"], "25")
+
+    def test_stop_routes_requires_city_code_and_stop_id(self):
+        response = self.client.get("/api/bus/stop-routes?city_code=37410")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"]["code"], "MISSING_STOP")
+
+    @patch("routes.bus.get_stop_routes")
+    def test_stop_routes_handles_external_api_error(self, mock_get_stop_routes):
+        mock_get_stop_routes.side_effect = BusServiceError("test error")
+
+        response = self.client.get(
+            "/api/bus/stop-routes?city_code=37410&stop_id=TSB371000038"
         )
 
         self.assertEqual(response.status_code, 502)
@@ -323,6 +360,42 @@ class BusServiceTest(unittest.TestCase):
             ["FIRST", "SECOND"],
         )
         self.assertEqual(mock_get.call_count, 2)
+
+    @patch("services.bus_service.TAGO_API_KEY", "test-key")
+    @patch("services.bus_service.requests.get")
+    def test_get_stop_routes_converts_data(self, mock_get):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {
+                    "items": {
+                        "item": [
+                            {
+                                "routeid": "TSB371000001",
+                                "routeno": 25,
+                                "routetp": "농어촌(일반)버스",
+                                "startnodenm": "봉화공용터미널",
+                                "endnodenm": "봉화공용터미널",
+                            }
+                        ]
+                    },
+                    "numOfRows": 100,
+                    "pageNo": 1,
+                    "totalCount": 1,
+                },
+            }
+        }
+        mock_get.return_value = response
+
+        routes = get_stop_routes("37410", "TSB371000038")
+
+        self.assertEqual(routes[0]["route_id"], "TSB371000001")
+        self.assertEqual(routes[0]["bus_number"], "25")
+        self.assertEqual(routes[0]["route_type"], "농어촌(일반)버스")
+        self.assertEqual(mock_get.call_args.kwargs["params"]["nodeid"], "TSB371000038")
+        self.assertNotIn("nodeId", mock_get.call_args.kwargs["params"])
 
 
 if __name__ == "__main__":

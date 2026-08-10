@@ -9,6 +9,10 @@ BUS_STATION_API_URL = (
     "https://apis.data.go.kr/1613000/"
     "BusSttnInfoInqireService/getCrdntPrxmtSttnList"
 )
+BUS_STOP_ROUTES_API_URL = (
+    "https://apis.data.go.kr/1613000/"
+    "BusSttnInfoInqireService/getSttnThrghRouteList"
+)
 BUS_ARRIVAL_API_URL = (
     "https://apis.data.go.kr/1613000/"
     "ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList"
@@ -282,3 +286,29 @@ def get_bus_route(city_code, route_id):
 
     route["stops"] = sorted(stops, key=lambda stop: stop["order"])
     return route
+
+
+def get_stop_routes(city_code, stop_id):
+    """선택한 정류장을 지나는 버스 노선 목록을 반환합니다."""
+    route_items = _get_all_response_items(BUS_STOP_ROUTES_API_URL, {
+        "cityCode": city_code,
+        # 이 오퍼레이션은 다른 TAGO API와 달리 소문자 nodeid를 사용합니다.
+        "nodeid": stop_id,
+    })
+
+    routes = []
+    for item in route_items:
+        try:
+            route = {
+                "route_id": str(item["routeid"]),
+                "bus_number": str(item["routeno"]),
+                "route_type": item.get("routetp"),
+                "start_stop": item.get("startnodenm"),
+                "end_stop": item.get("endnodenm"),
+            }
+        except (KeyError, TypeError):
+            continue
+
+        routes.append(route)
+
+    return routes
