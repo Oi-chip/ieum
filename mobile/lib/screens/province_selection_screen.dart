@@ -27,6 +27,10 @@ class ProvinceSelectionScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.pop(context);
                     },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black),
+                    ),
                     child: const Text('나가기'),
                   ),
 
@@ -44,13 +48,13 @@ class ProvinceSelectionScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '도를 선택하세요.',
                   style: TextStyle(
                     fontSize: 18,
-                    color: Colors.blue,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),

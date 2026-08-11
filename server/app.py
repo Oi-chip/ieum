@@ -1,12 +1,25 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
-# import config
+
+if __package__:
+    from .routes.bus import bus_blueprint
+    from .routes.hospital import hospital_blueprint
+else:
+    from routes.bus import bus_blueprint
+    from routes.hospital import hospital_blueprint
 
 # Flask 서버 객체를 만듭니다.
 app = Flask(__name__)
 
+# 브라우저에서도 한글 JSON이 그대로 보이도록 설정합니다.
+app.json.ensure_ascii = False
+
 # Flutter 앱이 서버에 요청할 수 있도록 허용합니다.
 CORS(app)
+
+# 버스 기능의 주소들을 Flask 앱에 등록합니다.
+app.register_blueprint(bus_blueprint)
+app.register_blueprint(hospital_blueprint)
 
 
 @app.get("/")
@@ -61,5 +74,3 @@ if __name__ == "__main__":
         port=5000,
         debug=True,
     )
-
-    #가나다라마바사

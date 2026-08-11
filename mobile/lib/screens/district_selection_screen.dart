@@ -27,6 +27,10 @@ class DistrictSelectionScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.pop(context);
                     },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black),
+                    ),
                     child: const Text('나가기'),
                   ),
 
@@ -50,9 +54,9 @@ class DistrictSelectionScreen extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '$province 안의 지역을 선택하세요.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
-                    color: Colors.blue,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
