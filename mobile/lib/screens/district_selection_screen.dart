@@ -50,9 +50,9 @@ class DistrictSelectionScreen extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '$province 안의 지역을 선택하세요.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
-                    color: Colors.blue,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),

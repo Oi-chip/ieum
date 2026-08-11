@@ -44,13 +44,13 @@ class ProvinceSelectionScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '도를 선택하세요.',
                   style: TextStyle(
                     fontSize: 18,
-                    color: Colors.blue,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
