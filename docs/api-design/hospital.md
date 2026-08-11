@@ -137,7 +137,7 @@ Flutter 병원 상세 화면은 사용자가 선택한 병원 객체의 이름, 
 ## 서버 환경변수
 
 ```dotenv
-DATA_GO_KR_API_KEY=공공데이터포털에서_발급받은_디코딩키
+data_go_API_KEY=공공데이터포털에서_발급받은_디코딩키
 ```
 
 `.env`와 실제 키는 GitHub나 Flutter 코드에 넣지 않습니다.
