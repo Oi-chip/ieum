@@ -202,7 +202,7 @@ class BusRouteTest(unittest.TestCase):
 
 
 class BusServiceTest(unittest.TestCase):
-    @patch("services.bus_service.DATA_GO_KR_API_KEY", "SECRET-BUS-KEY")
+    @patch("services.bus_service.data_go_API_KEY", "SECRET-BUS-KEY")
     @patch("services.bus_service.requests.get")
     def test_bus_request_error_hides_api_key(self, mock_get):
         mock_get.side_effect = requests.ConnectionError(

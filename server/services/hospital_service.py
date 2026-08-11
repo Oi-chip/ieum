@@ -5,9 +5,9 @@ from xml.etree import ElementTree
 import requests
 
 if __package__ == "server.services":
-    from ..config import DATA_GO_KR_API_KEY
+    from ..config import data_go_API_KEY
 else:
-    from config import DATA_GO_KR_API_KEY
+    from config import data_go_API_KEY
 
 
 HOSPITAL_API_URL = (
@@ -94,11 +94,11 @@ def _parse_hospital_response(xml_content):
 
 
 def _request_hospital_page(params, page_no=1, num_of_rows=UPSTREAM_PAGE_SIZE):
-    if not DATA_GO_KR_API_KEY:
-        raise HospitalConfigurationError("DATA_GO_KR_API_KEY가 설정되지 않았습니다.")
+    if not data_go_API_KEY:
+        raise HospitalConfigurationError("data_go_API_KEY가 설정되지 않았습니다.")
 
     request_params = {
-        "serviceKey": DATA_GO_KR_API_KEY,
+        "serviceKey": data_go_API_KEY,
         "pageNo": page_no,
         "numOfRows": num_of_rows,
         **params,

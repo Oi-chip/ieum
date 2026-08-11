@@ -190,7 +190,7 @@ class HospitalRouteTest(unittest.TestCase):
 
 
 class HospitalServiceTest(unittest.TestCase):
-    @patch("services.hospital_service.DATA_GO_KR_API_KEY", "SECRET-HOSPITAL-KEY")
+    @patch("services.hospital_service.data_go_API_KEY", "SECRET-HOSPITAL-KEY")
     @patch("services.hospital_service.requests.get")
     def test_hospital_request_error_hides_api_key(self, mock_get):
         mock_get.side_effect = requests.ConnectionError(
@@ -215,7 +215,7 @@ class HospitalServiceTest(unittest.TestCase):
         self.assertNotIn("SECRET-HOSPITAL-KEY", formatted_error)
         self.assertTrue(caught_error.__suppress_context__)
 
-    @patch("services.hospital_service.DATA_GO_KR_API_KEY", "test-key")
+    @patch("services.hospital_service.data_go_API_KEY", "test-key")
     @patch("services.hospital_service.requests.get")
     def test_nearby_hospitals_converts_sorts_and_calculates_open_status(self, mock_get):
         response = Mock()
@@ -248,7 +248,7 @@ class HospitalServiceTest(unittest.TestCase):
         self.assertEqual(params["Q1"], "봉화군")
         self.assertEqual(params["serviceKey"], "test-key")
 
-    @patch("services.hospital_service.DATA_GO_KR_API_KEY", "test-key")
+    @patch("services.hospital_service.data_go_API_KEY", "test-key")
     @patch("services.hospital_service.requests.get")
     def test_hospital_is_closed_after_today_hours(self, mock_get):
         response = Mock()
@@ -268,7 +268,7 @@ class HospitalServiceTest(unittest.TestCase):
         self.assertFalse(hospitals[0]["is_open"])
         self.assertEqual(hospitals[0]["open_status"], "closed")
 
-    @patch("services.hospital_service.DATA_GO_KR_API_KEY", "test-key")
+    @patch("services.hospital_service.data_go_API_KEY", "test-key")
     @patch("services.hospital_service.requests.get")
     def test_missing_today_hours_returns_unknown(self, mock_get):
         response = Mock()
@@ -289,7 +289,7 @@ class HospitalServiceTest(unittest.TestCase):
         self.assertEqual(hospitals[0]["open_status"], "unknown")
         self.assertIsNone(hospitals[0]["today_hours"])
 
-    @patch("services.hospital_service.DATA_GO_KR_API_KEY", "test-key")
+    @patch("services.hospital_service.data_go_API_KEY", "test-key")
     @patch("services.hospital_service.requests.get")
     def test_search_hospitals_without_location_has_null_distance(self, mock_get):
         response = Mock()
