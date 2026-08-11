@@ -3,9 +3,9 @@ from math import asin, ceil, cos, radians, sin, sqrt
 import requests
 
 if __package__ == "server.services":
-    from ..config import TAGO_API_KEY
+    from ..config import DATA_GO_KR_API_KEY
 else:
-    from config import TAGO_API_KEY
+    from config import DATA_GO_KR_API_KEY
 
 
 BUS_STATION_API_URL = (
@@ -115,11 +115,11 @@ def _get_all_response_items(url, params):
 
 
 def _request_bus_api(url, params):
-    if not TAGO_API_KEY:
-        raise BusConfigurationError("TAGO_API_KEY가 설정되지 않았습니다.")
+    if not DATA_GO_KR_API_KEY:
+        raise BusConfigurationError("DATA_GO_KR_API_KEY가 설정되지 않았습니다.")
 
     request_params = {
-        "serviceKey": TAGO_API_KEY,
+        "serviceKey": DATA_GO_KR_API_KEY,
         "pageNo": 1,
         "numOfRows": 20,
         "_type": "json",
@@ -134,8 +134,10 @@ def _request_bus_api(url, params):
         )
         response.raise_for_status()
         return response.json()
-    except (requests.RequestException, ValueError) as error:
-        raise BusServiceError("버스 API 요청에 실패했습니다.") from error
+    except (requests.RequestException, ValueError):
+        # requests 오류에는 API 키가 포함된 전체 요청 주소가 들어갈 수 있습니다.
+        # 원본 오류를 연결하지 않아 전체 traceback에서도 키가 노출되지 않게 합니다.
+        raise BusServiceError("버스 API 요청에 실패했습니다.") from None
 
 
 def get_nearby_stops(latitude, longitude):

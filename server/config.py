@@ -27,6 +27,9 @@ def load_region():
         return json.load(file)
 
 
-TAGO_API_KEY = os.getenv("TAGO_API_KEY")
-HOSPITAL_API_KEY = os.getenv("HOSPITAL_API_KEY")
-WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
+# 공공데이터포털은 하나의 서비스키를 승인받은 여러 API에 공통으로 사용합니다.
+# 기존 개발 환경이 바로 깨지지 않도록 예전 변수명도 임시로 지원합니다.
+DATA_GO_KR_API_KEY = (
+    os.getenv("DATA_GO_KR_API_KEY")
+    or os.getenv("TAGO_API_KEY")
+)
