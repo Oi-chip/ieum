@@ -3,8 +3,10 @@ from flask_cors import CORS
 
 if __package__:
     from .routes.bus import bus_blueprint
+    from .routes.hospital import hospital_blueprint
 else:
     from routes.bus import bus_blueprint
+    from routes.hospital import hospital_blueprint
 
 # Flask 서버 객체를 만듭니다.
 app = Flask(__name__)
@@ -17,6 +19,7 @@ CORS(app)
 
 # 버스 기능의 주소들을 Flask 앱에 등록합니다.
 app.register_blueprint(bus_blueprint)
+app.register_blueprint(hospital_blueprint)
 
 
 @app.get("/")

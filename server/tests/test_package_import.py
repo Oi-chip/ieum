@@ -15,8 +15,9 @@ class PackageImportTest(unittest.TestCase):
                 "-c",
                 (
                     "from server.app import app; "
-                    "assert '/api/bus/nearby' in "
-                    "{rule.rule for rule in app.url_map.iter_rules()}"
+                    "routes = {rule.rule for rule in app.url_map.iter_rules()}; "
+                    "assert '/api/bus/nearby' in routes; "
+                    "assert '/api/hospitals/nearby' in routes"
                 ),
             ],
             cwd=PROJECT_DIR,

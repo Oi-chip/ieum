@@ -134,8 +134,10 @@ def _request_bus_api(url, params):
         )
         response.raise_for_status()
         return response.json()
-    except (requests.RequestException, ValueError) as error:
-        raise BusServiceError("버스 API 요청에 실패했습니다.") from error
+    except (requests.RequestException, ValueError):
+        # requests 오류에는 API 키가 포함된 전체 요청 주소가 들어갈 수 있습니다.
+        # 원본 오류를 연결하지 않아 전체 traceback에서도 키가 노출되지 않게 합니다.
+        raise BusServiceError("버스 API 요청에 실패했습니다.") from None
 
 
 def get_nearby_stops(latitude, longitude):
