@@ -28,5 +28,3 @@ def load_region():
 
 
 data_go_API_KEY = os.getenv("data_go_API_KEY")
-HOSPITAL_API_KEY = os.getenv("HOSPITAL_API_KEY")
-WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")

@@ -11,6 +11,8 @@ import '../widgets/voice_button.dart';
 
 import 'bus_screen.dart';
 import 'hospital_screen.dart';
+import 'settings_screen.dart';
+import 'weather_screen.dart';
 
 // SOS 메뉴 항목 하나를 표현하는 데이터 클래스
 class _SosOption {
@@ -74,6 +76,20 @@ class HomeScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const HospitalScreen()),
+    );
+  }
+
+  void _goToWeatherScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const WeatherScreen()),
+    );
+  }
+
+  void _goToSettingsScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
   }
 
@@ -176,10 +192,7 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 14),
           HomeWeatherCard(
             weather: mockWeather,
-            onTap: () => _showTemporaryMessage(
-              context,
-              '날씨 화면은 B팀과 연계 예정입니다. (임시)',
-            ),
+            onTap: () => _goToWeatherScreen(context),
           ),
           const SizedBox(height: 14),
           HomeNewsCard(
@@ -206,10 +219,7 @@ class HomeScreen extends StatelessWidget {
                 context,
                 '나가기 기능은 추후 구현합니다. (임시)',
               ),
-              onSettingsTap: () => _showTemporaryMessage(
-                context,
-                '설정 화면은 B팀과 연계 예정입니다. (임시)',
-              ),
+              onSettingsTap: () => _goToSettingsScreen(context),
             ),
             _buildLocationBar(context),
             const Divider(height: 1),
