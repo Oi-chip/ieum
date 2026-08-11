@@ -46,7 +46,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, size: 18),
           label: const Text('나가기', style: TextStyle(fontSize: 16)),
           style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            foregroundColor: Colors.black,
           ),
         ),
         leadingWidth: 100,

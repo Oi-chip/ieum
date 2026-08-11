@@ -26,6 +26,8 @@ class AppTopBar extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onExitTap,
               style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.black,
+                side: const BorderSide(color: Colors.black),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 12,
@@ -58,6 +60,8 @@ class AppTopBar extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onSettingsTap,
               style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.black,
+                side: const BorderSide(color: Colors.black),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 12,

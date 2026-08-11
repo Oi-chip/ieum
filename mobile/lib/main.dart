@@ -35,7 +35,7 @@ class IeumApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32),
+          seedColor: const Color(0xFF81C784),
         ),
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
       ),

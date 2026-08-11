@@ -37,6 +37,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onPressed: () {
                     Navigator.maybePop(context);
                   },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black),
+                  ),
                   child: const Text('나가기'),
                 ),
               ),

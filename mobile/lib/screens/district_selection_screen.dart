@@ -27,6 +27,10 @@ class DistrictSelectionScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.pop(context);
                     },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black),
+                    ),
                     child: const Text('나가기'),
                   ),
 
