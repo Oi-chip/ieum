@@ -26,5 +26,4 @@ def load_region():
     with region_path.open(encoding="utf-8") as file:
         return json.load(file)
 
-
 data_go_API_KEY = os.getenv("data_go_API_KEY")
