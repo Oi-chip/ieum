@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 class AppTopBar extends StatelessWidget {
-  final VoidCallback onExitTap;
+  final VoidCallback onSosTap;
   final VoidCallback onSettingsTap;
 
   const AppTopBar({
     super.key,
-    required this.onExitTap,
+    required this.onSosTap,
     required this.onSettingsTap,
   });
 
@@ -21,28 +21,33 @@ class AppTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // SOS 버튼
           SizedBox(
             width: 100,
-            child: OutlinedButton(
-              onPressed: onExitTap,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.black,
-                side: const BorderSide(color: Colors.black),
+            child: ElevatedButton(
+              onPressed: onSosTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 12,
                 ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               child: const Text(
-                '나가기',
+                'SOS',
                 style: TextStyle(
-                  fontSize: 17,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
 
+          // 앱 이름
           const Expanded(
             child: Center(
               child: Text(
@@ -55,6 +60,7 @@ class AppTopBar extends StatelessWidget {
             ),
           ),
 
+          // 설정 버튼
           SizedBox(
             width: 100,
             child: OutlinedButton(
