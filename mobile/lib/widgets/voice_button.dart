@@ -27,7 +27,7 @@ class VoiceButton extends StatelessWidget {
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1976D2),
+          backgroundColor: const Color(0xFF81C784),
           foregroundColor: Colors.white,
           elevation: 2,
           shape: RoundedRectangleBorder(

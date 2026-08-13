@@ -19,8 +19,8 @@ const HospitalSummary mockHospital = HospitalSummary(
 );
 
 const WeatherSummary mockWeather = WeatherSummary(
-  temperature: '24°C (임시)',
-  condition: '맑음 (임시)',
+  temperature: '24°C',
+  condition: '맑음',
 );
 
 const List<NewsSummary> mockNewsList = [

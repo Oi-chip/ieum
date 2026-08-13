@@ -1,5 +1,8 @@
 import unittest
+import traceback
 from unittest.mock import Mock, patch
+
+import requests
 
 from app import app
 from services.bus_service import (
@@ -199,6 +202,26 @@ class BusRouteTest(unittest.TestCase):
 
 
 class BusServiceTest(unittest.TestCase):
+    @patch("services.bus_service.data_go_API_KEY", "SECRET-BUS-KEY")
+    @patch("services.bus_service.requests.get")
+    def test_bus_request_error_hides_api_key(self, mock_get):
+        mock_get.side_effect = requests.ConnectionError(
+            "request failed: https://example.test?serviceKey=SECRET-BUS-KEY"
+        )
+
+        try:
+            get_nearby_stops(36.3, 127.3)
+        except BusServiceError as error:
+            caught_error = error
+            formatted_error = "".join(
+                traceback.format_exception(type(error), error, error.__traceback__)
+            )
+        else:
+            self.fail("BusServiceError가 발생해야 합니다.")
+
+        self.assertNotIn("SECRET-BUS-KEY", formatted_error)
+        self.assertTrue(caught_error.__suppress_context__)
+
     def test_response_items_rejects_null_body(self):
         payload = {
             "response": {
@@ -210,7 +233,9 @@ class BusServiceTest(unittest.TestCase):
         with self.assertRaises(BusServiceError):
             _get_response_items(payload)
 
+
     @patch("services.bus_service.data_go_API_KEY", "test-key")
+    
     @patch("services.bus_service.requests.get")
     def test_get_nearby_stops_converts_and_sorts_data(self, mock_get):
         response = Mock()
@@ -255,6 +280,7 @@ class BusServiceTest(unittest.TestCase):
         self.assertIn("distance_m", stops[0])
 
     @patch("services.bus_service.data_go_API_KEY", "test-key")
+
     @patch("services.bus_service.requests.get")
     def test_get_bus_arrivals_converts_minutes_and_sorts_data(self, mock_get):
         response = Mock()
@@ -301,6 +327,7 @@ class BusServiceTest(unittest.TestCase):
         self.assertEqual(arrivals[1]["arrival_minutes"], 6)
 
     @patch("services.bus_service.data_go_API_KEY", "test-key")
+
     @patch("services.bus_service.requests.get")
     def test_get_bus_route_combines_info_and_ordered_stops(self, mock_get):
         route_response = Mock()
@@ -373,7 +400,9 @@ class BusServiceTest(unittest.TestCase):
         )
         self.assertEqual(mock_get.call_count, 2)
 
+
     @patch("services.bus_service.data_go_API_KEY", "test-key")
+
     @patch("services.bus_service.requests.get")
     def test_get_stop_routes_converts_data(self, mock_get):
         response = Mock()

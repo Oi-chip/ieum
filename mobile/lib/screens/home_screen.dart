@@ -11,6 +11,8 @@ import '../widgets/voice_button.dart';
 
 import 'bus_screen.dart';
 import 'hospital_screen.dart';
+import 'settings_screen.dart';
+import 'weather_screen.dart';
 
 // ==========================================
 // SOS 메뉴 항목 데이터
@@ -98,6 +100,20 @@ class HomeScreen extends StatelessWidget {
       MaterialPageRoute(
         builder: (context) => const HospitalScreen(),
       ),
+    );
+  }
+
+  void _goToWeatherScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const WeatherScreen()),
+    );
+  }
+
+  void _goToSettingsScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
   }
 

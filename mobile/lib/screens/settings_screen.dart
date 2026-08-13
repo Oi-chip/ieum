@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../data/app_settings.dart';
 import '../data/region_data.dart';
 import 'province_selection_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -15,12 +17,109 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String selectedRegion = '현재 위치';
   
   final TextEditingController emergencyContactController = TextEditingController();
-  
+
+  static const String emergencyContactKey = 'emergencyContact';
+  static const String selectedRegionKey = 'selectedRegion';
+  static const String selectedFontSizeKey = 'selectedFontSize';
+
+  final SharedPreferencesAsync preferences = SharedPreferencesAsync();
+
+  @override
+  void initState() {
+   super.initState();
+   loadEmergencyContact();
+   loadSelectedRegion();
+   loadSelectedFontSize();
+  }
+
+  // 저장된 긴급 연락망 불러오기
+  Future<void> loadEmergencyContact() async {
+    final String contact = await preferences.getString(emergencyContactKey) ?? '';
+
+    if (!mounted) {
+      return;
+    }
+
+    emergencyContactController.text = contact;
+  }
+
+  // 저장된 지역 불러오기
+  Future<void> loadSelectedRegion() async {
+    final String? region = await preferences.getString(selectedRegionKey);
+    if (!mounted || region == null) {
+      return;
+    }
+    
+    setState(() {
+      selectedRegion = region;
+    });
+  }
+
+  // 저장된 글씨 크기 불러오기
+  Future<void> loadSelectedFontSize() async {
+    final int? fontSize = await preferences.getInt(selectedFontSizeKey);
+    if (!mounted || fontSize == null) {
+      return;
+    }
+
+    if (fontSize < 0 || fontSize > 3) {
+      return;
+    }
+
+    setState(() {
+      selectedFontSize = fontSize;
+    });
+  }
+
+  // 글씨 크기 변경하고 저장하기
+  Future<void> updateFontSize(int fontSize) async {
+    await preferences.setInt(
+      selectedFontSizeKey,
+      fontSize,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    appFontScale.value = appFontScales[fontSize];
+
+    setState(() {
+      selectedFontSize = fontSize;
+    });
+  }
+
+  // 긴급 연락망 저장하기
+  Future<void> saveEmergencyContact() async {
+    final String contact = emergencyContactController.text.trim();
+
+    if (contact.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('긴급 연락망 번호를 입력하세요.'),
+        ),
+      );
+      return;
+    }
+
+    await preferences.setString(
+      emergencyContactKey,
+      contact,
+    );
+
+    if (!mounted) {
+      return;
+    }
+      
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   void dispose() {
     emergencyContactController.dispose();
     super.dispose();
   }
+
   
   @override
   Widget build(BuildContext context) {
@@ -28,7 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: Column(
+          child: ListView(
             children: [
               // 나가기 버튼
               Align(
@@ -37,6 +136,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onPressed: () {
                     Navigator.maybePop(context);
                   },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black),
+                  ),
                   child: const Text('나가기'),
                 ),
               ),
@@ -69,9 +172,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         IconButton(
                           onPressed: selectedFontSize > 0
                               ? () {
-                                  setState(() {
-                                    selectedFontSize--;
-                                  });
+                                  updateFontSize(
+                                    selectedFontSize - 1,
+                                  );
                               }
                             : null,
                             
@@ -142,12 +245,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         IconButton(
                           onPressed: selectedFontSize < 3
                               ? () {
-                                  setState(() {
-                                    selectedFontSize++;
-                                  });
+                                updateFontSize(
+                                  selectedFontSize + 1,
+                                );
                               }
                             : null,
-                          
+
                           icon: const Icon(
                             Icons.add_circle_outline,
                             size: 32,
@@ -180,20 +283,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     const SizedBox(height: 20),
 
-                    TextField(
-                      controller: emergencyContactController,
-                      keyboardType: TextInputType.phone,
-                      style: const TextStyle(
-                        fontSize: 22,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: '긴급 연락망 전화번호를 입력하세요.',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: emergencyContactController,
+                            keyboardType: TextInputType.phone,
+                            style: const TextStyle(
+                              fontSize: 22,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: '010-0000-0000',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+
+                        const SizedBox(width: 12),
+
+                        SizedBox(
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: saveEmergencyContact,
+                            child: const Text(
+                              '확인',
+                              style: TextStyle(
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -216,6 +341,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   );
 
                    if (region != null && mounted) {
+                    await preferences.setString(
+                      selectedRegionKey,
+                      region,
+                    );
+
+                    if (!mounted) {
+                      return;
+                    }
+
                     setState(() {
                       selectedRegion = region;
                     });
