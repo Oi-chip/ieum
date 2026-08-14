@@ -27,3 +27,4 @@ def load_region():
         return json.load(file)
 
 data_go_API_KEY = os.getenv("data_go_API_KEY")
+DATA_GO_API_KEY = data_go_API_KEY

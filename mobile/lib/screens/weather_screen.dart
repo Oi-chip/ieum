@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/api_service.dart';
+
 /// 날씨 화면
 ///
 /// 와이어프레임(docs/wireframe/날씨 페이지 스케치.png) 구성을 그대로 따른다.
@@ -17,6 +19,32 @@ class WeatherScreen extends StatefulWidget {
 
 class _WeatherScreenState extends State<WeatherScreen> {
   DateTime _selectedDate = DateTime.now();
+  _WeatherData? _weather;
+  String? _errorMessage;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWeather();
+  }
+
+  Future<void> _loadWeather() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final json = await ApiService.instance.getWeather(_selectedDate);
+      if (!mounted) return;
+      setState(() => _weather = _WeatherData.fromJson(json));
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = error.message);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   // 아래 함수에서 실제 TTS 재생 로직으로 교체하세요.
   // 서버(/api/weather)가 "짧고 자연스러운 한 문장"을 함께 내려주면
@@ -28,15 +56,27 @@ class _WeatherScreenState extends State<WeatherScreen> {
     );
   }
 
+  DateTime get _today {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  bool get _canGoPrevious => _selectedDate.isAfter(_today);
+  bool get _canGoNext => _selectedDate.isBefore(_today.add(const Duration(days: 4)));
+
   void _changeDate(int deltaDays) {
+    final nextDate = _selectedDate.add(Duration(days: deltaDays));
+    final lastForecastDate = _today.add(const Duration(days: 4));
+    if (nextDate.isBefore(_today) || nextDate.isAfter(lastForecastDate)) return;
     setState(() {
-      _selectedDate = _selectedDate.add(Duration(days: deltaDays));
+      _selectedDate = nextDate;
     });
+    _loadWeather();
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = _WeatherData.dummy();
+    final data = _weather;
 
     return Scaffold(
       appBar: AppBar(
@@ -58,28 +98,32 @@ class _WeatherScreenState extends State<WeatherScreen> {
             iconSize: 30,
             tooltip: '음성으로 듣기',
             icon: const Icon(Icons.volume_up),
-            onPressed: () => _speakWeather(data),
+            onPressed: data == null ? null : () => _speakWeather(data),
           ),
         ],
       ),
-      body: SafeArea(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? _WeatherError(message: _errorMessage!, onRetry: _loadWeather)
+              : SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 하늘상태 / 미세먼지 좌우 2분할 (와이어프레임 상단 두 원)
-              _TopStatusRow(data: data),
+              _TopStatusRow(data: data!),
               const SizedBox(height: 20),
               _DateNavigator(
                 date: _selectedDate,
-                onPrevious: () => _changeDate(-1),
-                onNext: () => _changeDate(1),
+                onPrevious: _canGoPrevious ? () => _changeDate(-1) : null,
+                onNext: _canGoNext ? () => _changeDate(1) : null,
               ),
               const SizedBox(height: 16),
               const _SectionLabel('시간별 예보'),
               const SizedBox(height: 8),
-              _HourlyForecastRow(hours: data.hourly),
+              _HourlyForecastRow(hours: data!.hourly),
               const SizedBox(height: 20),
               const _SectionLabel('상세 정보'),
               const SizedBox(height: 8),
@@ -205,8 +249,8 @@ class _DateNavigator extends StatelessWidget {
   });
 
   final DateTime date;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -250,7 +294,7 @@ class _PillButton extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool iconTrailing;
 
   @override
@@ -482,6 +526,36 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+class _WeatherError extends StatelessWidget {
+  const _WeatherError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 56),
+            const SizedBox(height: 16),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 더미 데이터 모델. 실제 연동 시 서버 /api/weather 응답 스키마에 맞춰
 // fromJson 팩토리를 추가하고, region.json의 nx/ny를 요청 파라미터로 사용하세요.
@@ -516,7 +590,6 @@ enum _AirQualityLevel {
 }
 
 class _WeatherData {
-  final IconData conditionIcon;
   final String conditionLabel;
   final int temperatureC;
   final _AirQualityLevel airQualityLevel;
@@ -526,7 +599,6 @@ class _WeatherData {
   final List<_HourlyForecast> hourly;
 
   const _WeatherData({
-    required this.conditionIcon,
     required this.conditionLabel,
     required this.temperatureC,
     required this.airQualityLevel,
@@ -536,6 +608,8 @@ class _WeatherData {
     required this.hourly,
   });
 
+  IconData get conditionIcon => _weatherIcon(conditionLabel);
+
   /// TTS로 읽어줄 한 문장 요약. 서버가 이 문장을 직접 내려주는 방식을
   /// 기획서 2.6에서 권장하므로, 실제 연동 시 서버 응답 필드로 교체하세요.
   String get summarySentence =>
@@ -543,36 +617,67 @@ class _WeatherData {
       '미세먼지는 ${airQualityLevel.label}이고, '
       '강수량은 $precipitationPercent퍼센트입니다.';
 
-  factory _WeatherData.dummy() {
+  factory _WeatherData.fromJson(Map<String, dynamic> json) {
+    final current = json['current'] as Map<String, dynamic>? ?? const {};
+    final currentAt = DateTime.tryParse(current['forecast_at']?.toString() ?? '');
+    final hourlyJson = json['hourly'] as List<dynamic>? ?? const [];
+    final windSpeed = (current['wind_speed_ms'] as num?)?.toDouble();
     return _WeatherData(
-      conditionIcon: Icons.wb_sunny,
-      conditionLabel: '맑음',
-      temperatureC: 30,
-      airQualityLevel: _AirQualityLevel.good,
-      precipitationPercent: 10,
-      snowPercent: 0,
-      windLabel: '약함',
-      hourly: const [
-        _HourlyForecast(label: '1시', icon: Icons.wb_sunny_outlined, temperatureC: 29, isCurrent: false),
-        _HourlyForecast(label: '2시', icon: Icons.wb_sunny, temperatureC: 30, isCurrent: true),
-        _HourlyForecast(label: '3시', icon: Icons.cloud_outlined, temperatureC: 29, isCurrent: false),
-        _HourlyForecast(label: '4시', icon: Icons.cloud_outlined, temperatureC: 28, isCurrent: false),
-        _HourlyForecast(label: '5시', icon: Icons.cloud, temperatureC: 27, isCurrent: false),
-      ],
+      conditionLabel: current['condition']?.toString() ?? '알 수 없음',
+      temperatureC: ((current['temperature_c'] as num?) ?? 0).round(),
+      airQualityLevel: _AirQualityLevel.normal,
+      precipitationPercent: ((current['precipitation_probability'] as num?) ?? 0).round(),
+      snowPercent: ((current['snow_cm'] as num?) ?? 0).round(),
+      windLabel: _windLabel(windSpeed),
+      hourly: hourlyJson
+          .whereType<Map<String, dynamic>>()
+          .map((item) => _HourlyForecast.fromJson(item, currentAt))
+          .toList(),
     );
   }
 }
 
 class _HourlyForecast {
   final String label;
-  final IconData icon;
+  final String condition;
   final int temperatureC;
   final bool isCurrent;
 
   const _HourlyForecast({
     required this.label,
-    required this.icon,
+    required this.condition,
     required this.temperatureC,
     required this.isCurrent,
   });
+
+  IconData get icon => _weatherIcon(condition);
+
+  factory _HourlyForecast.fromJson(Map<String, dynamic> json, DateTime? currentAt) {
+    final forecastAt = DateTime.tryParse(json['forecast_at']?.toString() ?? '');
+    final koreaTime = forecastAt?.toUtc().add(const Duration(hours: 9));
+    return _HourlyForecast(
+      label: koreaTime == null ? '-' : '${koreaTime.hour}시',
+      condition: json['condition']?.toString() ?? '알 수 없음',
+      temperatureC: ((json['temperature_c'] as num?) ?? 0).round(),
+      isCurrent: forecastAt != null && currentAt != null && forecastAt.isAtSameMomentAs(currentAt),
+    );
+  }
+}
+
+IconData _weatherIcon(String condition) {
+  if (condition.contains('눈') && condition.contains('비')) return Icons.grain;
+  if (condition.contains('눈')) return Icons.ac_unit;
+  if (condition.contains('소나기')) return Icons.thunderstorm;
+  if (condition.contains('비') || condition.contains('강수')) return Icons.umbrella;
+  if (condition.contains('흐림')) return Icons.cloud;
+  if (condition.contains('구름')) return Icons.cloud_outlined;
+  if (condition.contains('맑음')) return Icons.wb_sunny;
+  return Icons.help_outline;
+}
+
+String _windLabel(double? speed) {
+  if (speed == null) return '정보 없음';
+  if (speed < 4) return '약함';
+  if (speed < 9) return '보통';
+  return '강함';
 }
