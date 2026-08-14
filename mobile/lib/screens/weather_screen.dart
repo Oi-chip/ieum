@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/tts_service.dart';
 
 /// 날씨 화면
 ///
@@ -30,6 +31,9 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 
   Future<void> _loadWeather() async {
+    if (_selectedDate.isBefore(_today)) {
+      _selectedDate = _today;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -46,23 +50,25 @@ class _WeatherScreenState extends State<WeatherScreen> {
     }
   }
 
-  // 아래 함수에서 실제 TTS 재생 로직으로 교체하세요.
-  // 서버(/api/weather)가 "짧고 자연스러운 한 문장"을 함께 내려주면
-  // 그 문장을 그대로 TTS에 넘기는 방식을 기획서 2.6에서 권장하고 있습니다.
-  void _speakWeather(_WeatherData data) {
-    // 예시: await FlutterTts().speak(data.summarySentence);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('음성 안내: ${data.summarySentence}')),
-    );
+  Future<void> _speakWeather(_WeatherData data) async {
+    try {
+      await TtsService.instance.speak(data.summarySentence);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('음성 안내를 시작하지 못했습니다.')));
+    }
   }
 
   DateTime get _today {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day);
+    final koreaNow = DateTime.now().toUtc().add(const Duration(hours: 9));
+    return DateTime(koreaNow.year, koreaNow.month, koreaNow.day);
   }
 
   bool get _canGoPrevious => _selectedDate.isAfter(_today);
-  bool get _canGoNext => _selectedDate.isBefore(_today.add(const Duration(days: 4)));
+  bool get _canGoNext =>
+      _selectedDate.isBefore(_today.add(const Duration(days: 4)));
 
   void _changeDate(int deltaDays) {
     final nextDate = _selectedDate.add(Duration(days: deltaDays));
@@ -80,16 +86,6 @@ class _WeatherScreenState extends State<WeatherScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // 와이어프레임 좌측 상단 "나가기" 버튼
-        leading: TextButton.icon(
-          onPressed: () => Navigator.of(context).maybePop(),
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-          label: const Text('나가기', style: TextStyle(fontSize: 16)),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.black,
-          ),
-        ),
-        leadingWidth: 100,
         title: const Text('오늘 날씨', style: TextStyle(fontSize: 22)),
         centerTitle: true,
         actions: [
@@ -105,36 +101,36 @@ class _WeatherScreenState extends State<WeatherScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _WeatherError(message: _errorMessage!, onRetry: _loadWeather)
-              : SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 하늘상태 / 미세먼지 좌우 2분할 (와이어프레임 상단 두 원)
-              _TopStatusRow(data: data!),
-              const SizedBox(height: 20),
-              _DateNavigator(
-                date: _selectedDate,
-                onPrevious: _canGoPrevious ? () => _changeDate(-1) : null,
-                onNext: _canGoNext ? () => _changeDate(1) : null,
+          ? _WeatherError(message: _errorMessage!, onRetry: _loadWeather)
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 하늘상태 / 미세먼지 좌우 2분할 (와이어프레임 상단 두 원)
+                    _TopStatusRow(data: data!),
+                    const SizedBox(height: 20),
+                    _DateNavigator(
+                      date: _selectedDate,
+                      onPrevious: _canGoPrevious ? () => _changeDate(-1) : null,
+                      onNext: _canGoNext ? () => _changeDate(1) : null,
+                    ),
+                    const SizedBox(height: 16),
+                    const _SectionLabel('시간별 예보'),
+                    const SizedBox(height: 8),
+                    _HourlyForecastRow(hours: data.hourly),
+                    const SizedBox(height: 20),
+                    const _SectionLabel('상세 정보'),
+                    const SizedBox(height: 8),
+                    // 기온 -> 강수량 -> 눈 -> 바람 순서 (와이어프레임 순서 그대로)
+                    _DetailGrid(data: data),
+                    const SizedBox(height: 24),
+                    _SpeakButton(onPressed: () => _speakWeather(data)),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              const _SectionLabel('시간별 예보'),
-              const SizedBox(height: 8),
-              _HourlyForecastRow(hours: data!.hourly),
-              const SizedBox(height: 20),
-              const _SectionLabel('상세 정보'),
-              const SizedBox(height: 8),
-              // 기온 -> 강수량 -> 눈 -> 바람 순서 (와이어프레임 순서 그대로)
-              _DetailGrid(data: data),
-              const SizedBox(height: 24),
-              _SpeakButton(onPressed: () => _speakWeather(data)),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }
@@ -203,7 +199,10 @@ class _StatusCircleCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               if (subtitle != null) ...[
                 const SizedBox(width: 4),
@@ -372,8 +371,7 @@ class _HourlyCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: isNow ? FontWeight.w600 : FontWeight.w400,
-                color:
-                    isNow ? theme.colorScheme.primary : Colors.grey.shade700,
+                color: isNow ? theme.colorScheme.primary : Colors.grey.shade700,
               ),
             ),
             const SizedBox(height: 6),
@@ -423,7 +421,7 @@ class _DetailGrid extends StatelessWidget {
         ),
         _DetailTile(
           icon: Icons.water_drop_outlined,
-          label: '강수량',
+          label: '강수확률',
           value: '${data.precipitationPercent}%',
         ),
         _DetailTile(
@@ -431,11 +429,7 @@ class _DetailGrid extends StatelessWidget {
           label: '눈',
           value: '${data.snowPercent}%',
         ),
-        _DetailTile(
-          icon: Icons.air,
-          label: '바람',
-          value: data.windLabel,
-        ),
+        _DetailTile(icon: Icons.air, label: '바람', value: data.windLabel),
       ],
     );
   }
@@ -567,26 +561,26 @@ enum _AirQualityLevel {
   veryBad;
 
   Color get color => switch (this) {
-        _AirQualityLevel.good => Colors.green,
-        _AirQualityLevel.normal => Colors.lightGreen.shade700,
-        _AirQualityLevel.bad => Colors.orange,
-        _AirQualityLevel.veryBad => Colors.red,
-      };
+    _AirQualityLevel.good => Colors.green,
+    _AirQualityLevel.normal => Colors.lightGreen.shade700,
+    _AirQualityLevel.bad => Colors.orange,
+    _AirQualityLevel.veryBad => Colors.red,
+  };
 
   String get label => switch (this) {
-        _AirQualityLevel.good => '좋음',
-        _AirQualityLevel.normal => '보통',
-        _AirQualityLevel.bad => '나쁨',
-        _AirQualityLevel.veryBad => '매우 나쁨',
-      };
+    _AirQualityLevel.good => '좋음',
+    _AirQualityLevel.normal => '보통',
+    _AirQualityLevel.bad => '나쁨',
+    _AirQualityLevel.veryBad => '매우 나쁨',
+  };
 
   // 이모지 단독 표시는 지양하고, 아이콘 + 색상 + 한글 라벨을 함께 사용한다.
   IconData get icon => switch (this) {
-        _AirQualityLevel.good => Icons.sentiment_very_satisfied,
-        _AirQualityLevel.normal => Icons.sentiment_satisfied,
-        _AirQualityLevel.bad => Icons.sentiment_dissatisfied,
-        _AirQualityLevel.veryBad => Icons.sentiment_very_dissatisfied,
-      };
+    _AirQualityLevel.good => Icons.sentiment_very_satisfied,
+    _AirQualityLevel.normal => Icons.sentiment_satisfied,
+    _AirQualityLevel.bad => Icons.sentiment_dissatisfied,
+    _AirQualityLevel.veryBad => Icons.sentiment_very_dissatisfied,
+  };
 }
 
 class _WeatherData {
@@ -619,14 +613,17 @@ class _WeatherData {
 
   factory _WeatherData.fromJson(Map<String, dynamic> json) {
     final current = json['current'] as Map<String, dynamic>? ?? const {};
-    final currentAt = DateTime.tryParse(current['forecast_at']?.toString() ?? '');
+    final currentAt = DateTime.tryParse(
+      current['forecast_at']?.toString() ?? '',
+    );
     final hourlyJson = json['hourly'] as List<dynamic>? ?? const [];
     final windSpeed = (current['wind_speed_ms'] as num?)?.toDouble();
     return _WeatherData(
       conditionLabel: current['condition']?.toString() ?? '알 수 없음',
       temperatureC: ((current['temperature_c'] as num?) ?? 0).round(),
       airQualityLevel: _AirQualityLevel.normal,
-      precipitationPercent: ((current['precipitation_probability'] as num?) ?? 0).round(),
+      precipitationPercent:
+          ((current['precipitation_probability'] as num?) ?? 0).round(),
       snowPercent: ((current['snow_cm'] as num?) ?? 0).round(),
       windLabel: _windLabel(windSpeed),
       hourly: hourlyJson
@@ -652,14 +649,20 @@ class _HourlyForecast {
 
   IconData get icon => _weatherIcon(condition);
 
-  factory _HourlyForecast.fromJson(Map<String, dynamic> json, DateTime? currentAt) {
+  factory _HourlyForecast.fromJson(
+    Map<String, dynamic> json,
+    DateTime? currentAt,
+  ) {
     final forecastAt = DateTime.tryParse(json['forecast_at']?.toString() ?? '');
     final koreaTime = forecastAt?.toUtc().add(const Duration(hours: 9));
     return _HourlyForecast(
       label: koreaTime == null ? '-' : '${koreaTime.hour}시',
       condition: json['condition']?.toString() ?? '알 수 없음',
       temperatureC: ((json['temperature_c'] as num?) ?? 0).round(),
-      isCurrent: forecastAt != null && currentAt != null && forecastAt.isAtSameMomentAs(currentAt),
+      isCurrent:
+          forecastAt != null &&
+          currentAt != null &&
+          forecastAt.isAtSameMomentAs(currentAt),
     );
   }
 }
@@ -668,7 +671,9 @@ IconData _weatherIcon(String condition) {
   if (condition.contains('눈') && condition.contains('비')) return Icons.grain;
   if (condition.contains('눈')) return Icons.ac_unit;
   if (condition.contains('소나기')) return Icons.thunderstorm;
-  if (condition.contains('비') || condition.contains('강수')) return Icons.umbrella;
+  if (condition.contains('비') || condition.contains('강수')) {
+    return Icons.umbrella;
+  }
   if (condition.contains('흐림')) return Icons.cloud;
   if (condition.contains('구름')) return Icons.cloud_outlined;
   if (condition.contains('맑음')) return Icons.wb_sunny;

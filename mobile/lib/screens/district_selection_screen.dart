@@ -16,40 +16,12 @@ class DistrictSelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: Text('$province 지역 선택'), centerTitle: true),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              Row(
-                children: [
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.black,
-                      side: const BorderSide(color: Colors.black),
-                    ),
-                    child: const Text('나가기'),
-                  ),
-
-                  const SizedBox(width: 20),
-
-                  Expanded(
-                    child: Text(
-                      '$province 지역 선택',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -74,33 +46,20 @@ class DistrictSelectionScreen extends StatelessWidget {
 
                     return OutlinedButton(
                       onPressed: () {
-                        final String selectedRegion =
-                            '$province $district';
+                        final String selectedRegion = '$province $district';
 
-                        Navigator.pop(
-                          context,
-                          selectedRegion,
-                        );
+                        Navigator.pop(context, selectedRegion);
                       },
                       style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(
-                          double.infinity,
-                          65,
-                        ),
+                        minimumSize: const Size(double.infinity, 65),
                         alignment: Alignment.centerLeft,
                         foregroundColor: Colors.black,
-                        side: const BorderSide(
-                          color: Colors.grey,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                        ),
+                        side: const BorderSide(color: Colors.grey),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                       ),
                       child: Text(
                         district,
-                        style: const TextStyle(
-                          fontSize: 22,
-                        ),
+                        style: const TextStyle(fontSize: 22),
                       ),
                     );
                   },

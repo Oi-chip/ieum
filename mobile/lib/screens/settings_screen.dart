@@ -4,19 +4,19 @@ import '../data/region_data.dart';
 import 'province_selection_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
-  
+
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState(); 
+  State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
   int selectedFontSize = 1;
   String selectedRegion = '현재 위치';
-  
-  final TextEditingController emergencyContactController = TextEditingController();
+
+  final TextEditingController emergencyContactController =
+      TextEditingController();
 
   static const String emergencyContactKey = 'emergencyContact';
   static const String selectedRegionKey = 'selectedRegion';
@@ -26,15 +26,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void initState() {
-   super.initState();
-   loadEmergencyContact();
-   loadSelectedRegion();
-   loadSelectedFontSize();
+    super.initState();
+    loadEmergencyContact();
+    loadSelectedRegion();
+    loadSelectedFontSize();
   }
 
   // 저장된 긴급 연락망 불러오기
   Future<void> loadEmergencyContact() async {
-    final String contact = await preferences.getString(emergencyContactKey) ?? '';
+    final String contact =
+        await preferences.getString(emergencyContactKey) ?? '';
 
     if (!mounted) {
       return;
@@ -49,7 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted || region == null) {
       return;
     }
-    
+
     setState(() {
       selectedRegion = region;
     });
@@ -73,10 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // 글씨 크기 변경하고 저장하기
   Future<void> updateFontSize(int fontSize) async {
-    await preferences.setInt(
-      selectedFontSizeKey,
-      fontSize,
-    );
+    await preferences.setInt(selectedFontSizeKey, fontSize);
 
     if (!mounted) {
       return;
@@ -94,23 +92,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final String contact = emergencyContactController.text.trim();
 
     if (contact.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('긴급 연락망 번호를 입력하세요.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('긴급 연락망 번호를 입력하세요.')));
       return;
     }
 
-    await preferences.setString(
-      emergencyContactKey,
-      contact,
-    );
+    await preferences.setString(emergencyContactKey, contact);
 
     if (!mounted) {
       return;
     }
-      
+
     FocusScope.of(context).unfocus();
   }
 
@@ -120,32 +113,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text('설정'), centerTitle: true),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: ListView(
             children: [
-              // 나가기 버튼
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.maybePop(context);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.black,
-                    side: const BorderSide(color: Colors.black),
-                  ),
-                  child: const Text('나가기'),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
               // 글씨 크기 박스
               Container(
                 width: double.infinity,
@@ -172,12 +148,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         IconButton(
                           onPressed: selectedFontSize > 0
                               ? () {
-                                  updateFontSize(
-                                    selectedFontSize - 1,
-                                  );
-                              }
-                            : null,
-                            
+                                  updateFontSize(selectedFontSize - 1);
+                                }
+                              : null,
+
                           icon: const Icon(
                             Icons.remove_circle_outline,
                             size: 32,
@@ -186,7 +160,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                         // 1단계
                         Text(
-                           '가',
+                          '가',
                           style: TextStyle(
                             fontSize: 18,
                             color: selectedFontSize == 0
@@ -195,7 +169,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontWeight: selectedFontSize == 0
                                 ? FontWeight.bold
                                 : FontWeight.normal,
-                            
                           ),
                         ),
 
@@ -232,7 +205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           '가',
                           style: TextStyle(
                             fontSize: 36,
-                             color: selectedFontSize == 3
+                            color: selectedFontSize == 3
                                 ? Colors.green
                                 : Colors.black,
                             fontWeight: selectedFontSize == 3
@@ -245,20 +218,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         IconButton(
                           onPressed: selectedFontSize < 3
                               ? () {
-                                updateFontSize(
-                                  selectedFontSize + 1,
-                                );
-                              }
-                            : null,
+                                  updateFontSize(selectedFontSize + 1);
+                                }
+                              : null,
 
-                          icon: const Icon(
-                            Icons.add_circle_outline,
-                            size: 32,
-                          ),
+                          icon: const Icon(Icons.add_circle_outline, size: 32),
                         ),
                       ],
                     ),
-                  ],   
+                  ],
                 ),
               ),
 
@@ -269,7 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey), 
+                  border: Border.all(color: Colors.grey),
                 ),
                 child: Column(
                   children: [
@@ -290,9 +258,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: TextField(
                             controller: emergencyContactController,
                             keyboardType: TextInputType.phone,
-                            style: const TextStyle(
-                              fontSize: 22,
-                            ),
+                            style: const TextStyle(fontSize: 22),
                             decoration: const InputDecoration(
                               hintText: '010-0000-0000',
                               border: OutlineInputBorder(),
@@ -312,9 +278,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onPressed: saveEmergencyContact,
                             child: const Text(
                               '확인',
-                              style: TextStyle(
-                                fontSize: 18,
-                              ),
+                              style: TextStyle(fontSize: 18),
                             ),
                           ),
                         ),
@@ -325,26 +289,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
 
               const SizedBox(height: 20),
-              
+
               // 지역 설정 박스
               InkWell(
                 onTap: () async {
                   final String? region = await Navigator.push<String>(
                     context,
                     MaterialPageRoute(
-                       builder: (context) {
+                      builder: (context) {
                         return const ProvinceSelectionScreen(
                           districtsByProvince: districtsByProvince,
                         );
-                       },
+                      },
                     ),
                   );
 
-                   if (region != null && mounted) {
-                    await preferences.setString(
-                      selectedRegionKey,
-                      region,
-                    );
+                  if (region != null && mounted) {
+                    await preferences.setString(selectedRegionKey, region);
 
                     if (!mounted) {
                       return;
@@ -353,7 +314,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() {
                       selectedRegion = region;
                     });
-                   }
+                  }
                 },
                 child: Container(
                   width: double.infinity,
@@ -363,16 +324,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 48,
-                      ),
+                      const Icon(Icons.location_on_outlined, size: 48),
 
                       const SizedBox(width: 20),
 
                       Expanded(
                         child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
                               '지역 설정',
@@ -392,13 +350,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ),
                           ],
-                        )
-                      )
-                    ]
-                  )
-
-                )
-              )
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
