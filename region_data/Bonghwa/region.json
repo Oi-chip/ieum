@@ -1,5 +1,6 @@
 {
   "id": "bonghwa",
   "name": "봉화군",
-  "province": "경상북도"
+  "province": "경상북도",
+  "weather_grid": {"nx": 90, "ny": 106}
 }
