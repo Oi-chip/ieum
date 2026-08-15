@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../mock_data/home_mock_data.dart';
+import '../mock_data/bus_mock_data.dart';
+import '../models/bus_data.dart';
+import '../models/home_data.dart';
+import '../services/favorite_bus_service.dart';
 
 import '../widgets/app_top_bar.dart';
 import '../widgets/home_bus_card.dart';
@@ -16,10 +20,120 @@ import 'settings_screen.dart';
 import 'weather_screen.dart';
 
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
   static const Color _backgroundColor = Color(0xFFF8FAFC);
+
+  BusSummary _homeBus = mockBus;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadHomeBus();
+  }
+
+  // 저장된 즐겨찾기를 반영해 메인화면에 표시할 버스 선택
+  Future<void> _loadHomeBus() async {
+    final favoriteRouteIds =
+        await FavoriteBusService.getFavoriteRouteIds();
+
+    final candidates = <BusData>[];
+
+    for (final buses in mockBusListByStop.values) {
+      candidates.addAll(buses);
+    }
+
+    if (candidates.isEmpty) {
+      return;
+    }
+
+    candidates.sort((a, b) {
+      final aFavorite =
+          favoriteRouteIds.contains(a.routeId);
+      final bFavorite =
+          favoriteRouteIds.contains(b.routeId);
+
+      // 즐겨찾기 버스를 우선 표시
+      if (aFavorite != bFavorite) {
+        return aFavorite ? -1 : 1;
+      }
+
+      // 같은 조건에서는 도착시간이 빠른 버스를 우선 표시
+      final aArrival =
+          a.arrivalMinutes ?? 999999;
+      final bArrival =
+          b.arrivalMinutes ?? 999999;
+
+      return aArrival.compareTo(bArrival);
+    });
+
+    final selectedBus = candidates.first;
+    final selectedStopName =
+        _findStopNameForBus(selectedBus);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _homeBus = BusSummary(
+        stopName: selectedStopName,
+        busNumber: selectedBus.busNumber,
+        route: _buildHomeRouteText(selectedBus),
+        arrivalTime:
+            _buildHomeArrivalText(selectedBus),
+      );
+    });
+  }
+
+  // 선택한 버스가 어느 정류장에서 출발하는지 찾기
+  String _findStopNameForBus(BusData bus) {
+    for (final entry in mockBusListByStop.entries) {
+      final containsBus = entry.value.any(
+        (item) => item.routeId == bus.routeId,
+      );
+
+      if (!containsBus) {
+        continue;
+      }
+
+      for (final stop in mockNearbyBusStops) {
+        if (stop.stopId == entry.key) {
+          return '정류장 : ${stop.stopName}';
+        }
+      }
+    }
+
+    return '정류장 정보 없음 (임시)';
+  }
+
+  // 메인 카드 노선 문구 생성
+  String _buildHomeRouteText(BusData bus) {
+    final start = bus.startStop;
+    final end = bus.endStop;
+
+    if (start != null && end != null) {
+      return '$start → $end';
+    }
+
+    return '노선 정보 없음 (임시)';
+  }
+
+  // 메인 카드 도착시간 문구 생성
+  String _buildHomeArrivalText(BusData bus) {
+    if (bus.arrivalMinutes == null) {
+      return '도착 정보 없음';
+    }
+
+    return '${bus.arrivalMinutes}분 후 도착 (임시)';
+  }
 
   // 임시 안내 메시지
   void _showTemporaryMessage(
@@ -34,13 +148,18 @@ class HomeScreen extends StatelessWidget {
   }
 
   // 버스 화면 이동
-  void _goToBusScreen(BuildContext context) {
-    Navigator.push(
+  Future<void> _goToBusScreen(
+    BuildContext context,
+  ) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const BusScreen(),
       ),
     );
+
+    // 버스화면에서 즐겨찾기를 변경했을 수 있으므로 다시 확인
+    await _loadHomeBus();
   }
 
   // 병원 화면 이동
@@ -111,7 +230,7 @@ class HomeScreen extends StatelessWidget {
         children: [
           // 버스 카드
           HomeBusCard(
-            bus: mockBus,
+            bus: _homeBus,
             onTap: () {
               _goToBusScreen(context);
             },

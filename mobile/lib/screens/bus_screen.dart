@@ -363,7 +363,7 @@ class _BusScreenState extends State<BusScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  '정류장 선택',
+                  '다른 정류장 선택',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
