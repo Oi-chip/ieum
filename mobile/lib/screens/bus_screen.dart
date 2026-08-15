@@ -21,8 +21,17 @@ class _BusScreenState extends State<BusScreen> {
 
   List<BusData> _displayedBusList = List.from(mockBusList);
 
+  late BusStopData _selectedStop;
+
   bool _isSearching = false;
   bool _isRefreshing = false;
+  bool _wasStopAutomaticallyChanged = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStop = mockNearbyBusStop;
+  }
 
   @override
   void dispose() {
@@ -39,6 +48,69 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
+  // 목적지 검색으로 정류장이 변경되었을 때 안내
+  void _showStopChangedMessage() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            titlePadding: const EdgeInsets.fromLTRB(24, 16, 12, 0),
+            title: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '주의',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  icon: const Icon(
+                    Icons.close,
+                    size: 30,
+                  ),
+                  tooltip: '닫기',
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 70,
+                  color: Colors.orange,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '정류장이\n'
+                  '${_selectedStop.stopName} (으)로\n'
+                  '변경되었습니다.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   // 버스 정보 새로고침
   Future<void> _refreshBusData() async {
@@ -74,6 +146,7 @@ class _BusScreenState extends State<BusScreen> {
   // 목적지 검색
   void _searchDestination() {
     FocusScope.of(context).unfocus();
+
     final destination = _searchController.text.trim();
 
     if (destination.isEmpty) {
@@ -83,16 +156,107 @@ class _BusScreenState extends State<BusScreen> {
       return;
     }
 
+    BusStopData? matchedStop;
+    List<BusData> matchedBuses = [];
+
+    // 현재 선택 정류장을 먼저 확인
+    final currentStopBuses =
+        mockBusListByStop[_selectedStop.stopId] ?? [];
+
+    matchedBuses = _findMatchingBuses(
+      currentStopBuses,
+      destination,
+    );
+
+    if (matchedBuses.isNotEmpty) {
+      matchedStop = _selectedStop;
+    }
+
+    // 현재 정류장에서 찾지 못하면 주변 정류장 확인
+    if (matchedStop == null) {
+      for (final stop in mockNearbyBusStops) {
+        if (stop.stopId == _selectedStop.stopId) {
+          continue;
+        }
+
+        final buses =
+            mockBusListByStop[stop.stopId] ?? [];
+
+        final result = _findMatchingBuses(
+          buses,
+          destination,
+        );
+
+        if (result.isNotEmpty) {
+          matchedStop = stop;
+          matchedBuses = result;
+          break;
+        }
+      }
+    }
+
+    final previousStopId = _selectedStop.stopId;
+
     setState(() {
       _isSearching = true;
 
-      // 실제 /api/bus/search 연결 전 임시 검색 결과 사용
-      if (destination.contains('영주')) {
-        _displayedBusList = List.from(mockSearchBusList);
+      if (matchedStop != null) {
+        _wasStopAutomaticallyChanged = matchedStop.stopId != previousStopId;
+
+        _selectedStop = matchedStop;
+        _displayedBusList = matchedBuses;
       } else {
+        _wasStopAutomaticallyChanged = false;
         _displayedBusList = [];
       }
     });
+
+    if (_wasStopAutomaticallyChanged) {
+      _showStopChangedMessage();
+    }
+
+  }
+
+  List<BusData> _findMatchingBuses(
+    List<BusData> buses,
+    String destination,
+  ) {
+    final normalizedDestination =
+        destination.toLowerCase();
+
+    return buses.where((bus) {
+      final destinations =
+          mockDestinationsByRoute[bus.routeId] ?? [];
+
+      return destinations.any(
+        (stopName) => stopName
+            .toLowerCase()
+            .contains(normalizedDestination),
+      );
+    }).map((bus) {
+      final destinations =
+          mockDestinationsByRoute[bus.routeId] ?? [];
+
+      final matchedDestination =
+          destinations.firstWhere(
+        (stopName) => stopName
+            .toLowerCase()
+            .contains(normalizedDestination),
+        orElse: () => destination,
+      );
+
+      return BusData(
+        routeId: bus.routeId,
+        busNumber: bus.busNumber,
+        routeType: bus.routeType,
+        startStop: bus.startStop,
+        endStop: bus.endStop,
+        matchedStop: '$matchedDestination (임시)',
+        remainingStops: bus.remainingStops,
+        arrivalMinutes: bus.arrivalMinutes,
+        isFavorite: bus.isFavorite,
+      );
+    }).toList();
   }
 
   // 검색 초기화
@@ -101,7 +265,10 @@ class _BusScreenState extends State<BusScreen> {
 
     setState(() {
       _isSearching = false;
-      _displayedBusList = List.from(mockBusList);
+
+      _displayedBusList = List.from(
+        mockBusListByStop[_selectedStop.stopId] ?? [],
+      );
     });
   }
 
@@ -148,6 +315,78 @@ class _BusScreenState extends State<BusScreen> {
         return item;
       }).toList();
     });
+  }
+
+  // 주변 정류장 선택창
+  void _showStopSelectionMenu() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '정류장 선택',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  '이용할 정류장을 선택해 주세요.',
+                  style: TextStyle(
+                    fontSize: 17,
+                    color: Colors.black54,
+                  ),
+                ),
+
+                const SizedBox(height: 18),
+
+                for (final stop in mockNearbyBusStops)
+                  ListTile(
+                    leading: Icon(
+                      stop.stopId == _selectedStop.stopId
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                    ),
+                    title: Text(
+                      stop.stopName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${stop.distanceM}m (임시)',
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _selectedStop = stop;
+
+                        _displayedBusList = List.from(
+                          mockBusListByStop[stop.stopId] ?? [],
+                        );
+
+                        _isSearching = false;
+                        _searchController.clear();
+                      });
+
+                      Navigator.pop(bottomSheetContext);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -325,43 +564,57 @@ class _BusScreenState extends State<BusScreen> {
 
   // 가까운 정류장 영역
   Widget _buildNearbyStopSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black12,
+    return InkWell(
+      onTap: _showStopSelectionMenu,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.black12,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '가까운 정류장',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '가까운 정류장',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _selectedStop.stopName,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_selectedStop.distanceM}m (임시)',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            mockNearbyBusStop.stopName,
-            style: const TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.w600,
+            const Icon(
+              Icons.chevron_right,
+              size: 30,
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${mockNearbyBusStop.distanceM}m (임시)',
-            style: const TextStyle(
-              fontSize: 17,
-              color: Colors.black54,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -440,4 +693,5 @@ class _BusScreenState extends State<BusScreen> {
       ),
     );
   }
+
 }

@@ -9,6 +9,86 @@ const BusStopData mockNearbyBusStop = BusStopData(
   distanceM: 206,
 );
 
+// 주변 정류장 임시 데이터
+const List<BusStopData> mockNearbyBusStops = [
+  mockNearbyBusStop,
+  BusStopData(
+    stopId: 'TSB371000039',
+    cityCode: '37410',
+    stopName: '봉화공용터미널 건너편 (임시)',
+    stopNumber: '40601',
+    distanceM: 238,
+  ),
+  BusStopData(
+    stopId: 'TSB371000040',
+    cityCode: '37410',
+    stopName: '봉화시장 (임시)',
+    stopNumber: '40602',
+    distanceM: 315,
+  ),
+];
+
+// 정류장별 버스 목록 임시 데이터
+const Map<String, List<BusData>> mockBusListByStop = {
+  'TSB371000038': [
+    BusData(
+      routeId: 'TSB371000047',
+      busNumber: '33번 (임시)',
+      routeType: '농어촌(일반)버스 (임시)',
+      startStop: '봉화공용터미널 (임시)',
+      endStop: '영주터미널 (임시)',
+      matchedStop: null,
+      remainingStops: 3,
+      arrivalMinutes: 5,
+      isFavorite: true,
+    ),
+  ],
+
+  'TSB371000039': [
+    BusData(
+      routeId: 'TSB371000048',
+      busNumber: '34번 (임시)',
+      routeType: '농어촌(일반)버스 (임시)',
+      startStop: '봉화공용터미널 건너편 (임시)',
+      endStop: '춘양 (임시)',
+      matchedStop: null,
+      remainingStops: 4,
+      arrivalMinutes: 8,
+      isFavorite: false,
+    ),
+  ],
+
+  'TSB371000040': [
+    BusData(
+      routeId: 'TSB371000049',
+      busNumber: '35번 (임시)',
+      routeType: '농어촌(일반)버스 (임시)',
+      startStop: '봉화시장 (임시)',
+      endStop: '법전 (임시)',
+      matchedStop: null,
+      remainingStops: 6,
+      arrivalMinutes: 12,
+      isFavorite: false,
+    ),
+  ],
+};
+
+// 목적지 검색용 임시 데이터
+const Map<String, List<String>> mockDestinationsByRoute = {
+  'TSB371000047': [
+    '영주',
+    '영주터미널',
+    '문단',
+  ],
+  'TSB371000048': [
+    '춘양',
+    '봉화병원',
+  ],
+  'TSB371000049': [
+    '법전',
+  ],
+};
+
 // 버스 목록 임시 데이터
 const List<BusData> mockBusList = [
   BusData(
@@ -159,3 +239,4 @@ BusDetailData getMockBusDetail(BusData bus) {
     ],
   );
 }
+
