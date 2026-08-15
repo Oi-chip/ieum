@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../mock_data/bus_mock_data.dart';
 import '../models/bus_data.dart';
+import '../services/favorite_bus_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/bus_list_card.dart';
 import '../widgets/voice_button.dart';
@@ -23,6 +24,8 @@ class _BusScreenState extends State<BusScreen> {
 
   late BusStopData _selectedStop;
 
+  Set<String> _favoriteRouteIds = {};
+
   bool _isSearching = false;
   bool _isRefreshing = false;
   bool _wasStopAutomaticallyChanged = false;
@@ -31,7 +34,24 @@ class _BusScreenState extends State<BusScreen> {
   void initState() {
     super.initState();
     _selectedStop = mockNearbyBusStop;
+    _loadFavorites();
   }
+
+  // 휴대폰에 저장된 버스 즐겨찾기 불러오기
+  Future<void> _loadFavorites() async {
+    final favoriteRouteIds =
+        await FavoriteBusService.getFavoriteRouteIds();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _favoriteRouteIds = favoriteRouteIds;
+    });
+  }
+
+  
 
   @override
   void dispose() {
@@ -278,7 +298,11 @@ class _BusScreenState extends State<BusScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => BusDetailScreen(
-          bus: bus,
+          bus: bus.copyWith(
+            isFavorite: _favoriteRouteIds.contains(
+              bus.routeId,
+            ),
+          ),
         ),
       ),
     );
@@ -292,6 +316,12 @@ class _BusScreenState extends State<BusScreen> {
     }
 
     setState(() {
+      if (updatedBus.isFavorite) {
+        _favoriteRouteIds.add(updatedBus.routeId);
+      } else {
+        _favoriteRouteIds.remove(updatedBus.routeId);
+      }
+
       _displayedBusList = _displayedBusList.map((item) {
         if (item.routeId == updatedBus.routeId) {
           return updatedBus;
@@ -302,18 +332,21 @@ class _BusScreenState extends State<BusScreen> {
     });
   }
 
-  // 즐겨찾기 버튼 선택
-  void _toggleFavorite(BusData bus) {
-    setState(() {
-      _displayedBusList = _displayedBusList.map((item) {
-        if (item.routeId == bus.routeId) {
-          return item.copyWith(
-            isFavorite : !item.isFavorite,
-          );
-        }
+  // 버스 즐겨찾기 추가/해제
+  Future<void> _toggleFavorite(BusData bus) async {
+    final isFavorite =
+        await FavoriteBusService.toggleFavorite(bus.routeId);
 
-        return item;
-      }).toList();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (isFavorite) {
+        _favoriteRouteIds.add(bus.routeId);
+      } else {
+        _favoriteRouteIds.remove(bus.routeId);
+      }
     });
   }
 
@@ -655,7 +688,11 @@ class _BusScreenState extends State<BusScreen> {
             index < _displayedBusList.length;
             index++) ...[
           BusListCard(
-            bus: _displayedBusList[index],
+            bus: _displayedBusList[index].copyWith(
+              isFavorite: _favoriteRouteIds.contains(
+                _displayedBusList[index].routeId,
+              ),
+            ),
             onTap: () {
               _openBusDetail(
                 _displayedBusList[index],

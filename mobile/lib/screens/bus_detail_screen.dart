@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../mock_data/bus_mock_data.dart';
 import '../models/bus_data.dart';
+import '../services/favorite_bus_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/voice_button.dart';
 import '../widgets/sos_menu.dart';
@@ -29,6 +30,22 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     // 실제 API 연결 전 임시 상세정보 사용
     _detail = getMockBusDetail(widget.bus);
     _isFavorite = widget.bus.isFavorite;
+
+    _loadFavorite();
+  } 
+
+  // 휴대폰에 저장된 즐겨찾기 상태 불러오기
+  Future<void> _loadFavorite() async {
+    final isFavorite =
+        await FavoriteBusService.isFavorite(widget.bus.routeId);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isFavorite = isFavorite;
+    });
   }
 
   // 아직 구현되지 않은 기능 안내
@@ -40,21 +57,18 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 즐겨찾기 상태 변경
-  void _toggleFavorite() {
-    setState(() {
-      _isFavorite = !_isFavorite;
-    });
+  // 즐겨찾기 추가 또는 해제
+  Future<void> _toggleFavorite() async {
+    final isFavorite =
+        await FavoriteBusService.toggleFavorite(widget.bus.routeId);
 
-    if (_isFavorite) {
-      _showTemporaryMessage(
-        '즐겨찾기에 추가했습니다. 현재는 임시 상태입니다.',
-      );
-    } else {
-      _showTemporaryMessage(
-        '즐겨찾기에서 삭제했습니다. 현재는 임시 상태입니다.',
-      );
+    if (!mounted) {
+      return;
     }
+
+    setState(() {
+      _isFavorite = isFavorite;
+    });
   }
 
   // 버스 목록 화면으로 돌아가기
