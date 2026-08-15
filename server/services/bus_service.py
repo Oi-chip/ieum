@@ -320,3 +320,92 @@ def get_stop_routes(city_code, stop_id):
         routes.append(route)
 
     return routes
+
+
+def search_buses_by_destination(
+    latitude,
+    longitude,
+    destination,
+):
+    """가장 가까운 정류장에서 목적지를 지나는 버스를 검색합니다."""
+    destination = destination.strip()
+
+    nearby_stops = get_nearby_stops(
+        latitude,
+        longitude,
+    )
+
+    if not nearby_stops:
+        return {
+            "stop": None,
+            "buses": [],
+        }
+
+    nearest_stop = nearby_stops[0]
+
+    city_code = nearest_stop["city_code"]
+    stop_id = nearest_stop["id"]
+
+    routes = get_stop_routes(
+        city_code,
+        stop_id,
+    )
+
+    arrivals = get_bus_arrivals(
+        city_code,
+        stop_id,
+    )
+
+    arrival_by_route_id = {
+        arrival["route_id"]: arrival
+        for arrival in arrivals
+    }
+
+    matched_buses = []
+
+    for route in routes:
+        route_detail = get_bus_route(
+            city_code,
+            route["route_id"],
+        )
+
+        if route_detail is None:
+            continue
+
+        matched_stop = None
+
+        for stop in route_detail["stops"]:
+            if destination in stop["name"]:
+                matched_stop = stop
+                break
+
+        if matched_stop is None:
+            continue
+
+        arrival = arrival_by_route_id.get(
+            route["route_id"]
+        )
+
+        matched_buses.append({
+            "route_id": route["route_id"],
+            "bus_number": route["bus_number"],
+            "route_type": route["route_type"],
+            "start_stop": route["start_stop"],
+            "end_stop": route["end_stop"],
+            "matched_stop": matched_stop["name"],
+            "remaining_stops": (
+                arrival["remaining_stops"]
+                if arrival is not None
+                else None
+            ),
+            "arrival_minutes": (
+                arrival["arrival_minutes"]
+                if arrival is not None
+                else None
+            ),
+        })
+
+    return {
+        "stop": nearest_stop,
+        "buses": matched_buses,
+    }

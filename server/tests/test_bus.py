@@ -12,6 +12,7 @@ from services.bus_service import (
     get_bus_route,
     get_nearby_stops,
     get_stop_routes,
+    search_buses_by_destination,
 )
 
 
@@ -199,6 +200,66 @@ class BusRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 502)
         self.assertEqual(response.get_json()["error"]["code"], "BUS_DATA_UNAVAILABLE")
+
+    @patch("routes.bus.search_buses_by_destination")
+    def test_bus_search_success(
+        self,
+        mock_search_buses_by_destination,
+    ):
+        mock_search_buses_by_destination.return_value = {
+            "stop": {
+                "id": "TSB371000038",
+                "city_code": "37410",
+                "name": "봉화공용터미널",
+                "distance_m": 206,
+            },
+            "buses": [
+                {
+                    "route_id": "TSB371000047",
+                    "bus_number": "33",
+                    "route_type": "농어촌(일반)버스",
+                    "start_stop": "봉화공용터미널",
+                    "end_stop": "영주터미널",
+                    "matched_stop": "영주터미널",
+                    "remaining_stops": 3,
+                    "arrival_minutes": 5,
+                }
+            ],
+        }
+
+        response = self.client.get(
+            "/api/bus/search"
+            "?latitude=36.893"
+            "&longitude=128.732"
+            "&destination=영주"
+        )
+
+        data = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertEqual(
+            data["data"]["destination"],
+            "영주",
+        )
+        self.assertEqual(
+            data["data"]["buses"][0]["bus_number"],
+            "33",
+        )
+
+
+    def test_bus_search_requires_destination(self):
+        response = self.client.get(
+            "/api/bus/search"
+            "?latitude=36.893"
+            "&longitude=128.732"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.get_json()["error"]["code"],
+            "MISSING_DESTINATION",
+        )
 
 
 class BusServiceTest(unittest.TestCase):

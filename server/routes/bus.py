@@ -10,7 +10,8 @@ if __package__ == "server.routes":
         get_bus_route,
         get_nearby_stops,
         get_stop_routes,
-    )
+        search_buses_by_destination,
+    )           
 else:
     from services.bus_service import (
         BusConfigurationError,
@@ -19,7 +20,8 @@ else:
         get_bus_route,
         get_nearby_stops,
         get_stop_routes,
-    )
+        search_buses_by_destination,
+    )                
 
 
 bus_blueprint = Blueprint("bus", __name__, url_prefix="/api/bus")
@@ -117,6 +119,27 @@ def _parse_route():
 
     return (city_code, route_id), None
 
+def _parse_destination():
+    destination = request.args.get(
+        "destination",
+        "",
+    ).strip()
+
+    if not destination:
+        return None, _error_response(
+            "MISSING_DESTINATION",
+            "도착지를 입력해 주세요.",
+            400,
+        )
+
+    if len(destination) > 50:
+        return None, _error_response(
+            "INVALID_DESTINATION",
+            "도착지 입력값이 너무 깁니다.",
+            400,
+        )
+
+    return destination, None
 
 @bus_blueprint.get("/nearby")
 def nearby_bus_stops():
@@ -263,4 +286,50 @@ def stop_routes():
         "message": "정류장을 지나는 버스 목록을 조회했습니다.",
         "source": "국토교통부 TAGO",
         "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    })
+
+
+@bus_blueprint.get("/search")
+def search_buses():
+    location, error = _parse_location()
+    if error is not None:
+        return error
+
+    destination, error = _parse_destination()
+    if error is not None:
+        return error
+
+    latitude, longitude = location
+
+    try:
+        result = search_buses_by_destination(
+            latitude,
+            longitude,
+            destination,
+        )
+    except BusConfigurationError:
+        return _error_response(
+            "BUS_API_KEY_MISSING",
+            "서버에 버스 API 키가 설정되지 않았습니다.",
+            500,
+        )
+    except BusServiceError:
+        return _error_response(
+            "BUS_DATA_UNAVAILABLE",
+            "버스 검색정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            502,
+        )
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "destination": destination,
+            "stop": result["stop"],
+            "buses": result["buses"],
+        },
+        "message": "도착지를 지나는 버스를 조회했습니다.",
+        "source": "국토교통부 TAGO",
+        "updated_at": datetime.now(timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
     })
