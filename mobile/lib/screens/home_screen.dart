@@ -16,6 +16,7 @@ import '../widgets/voice_button.dart';
 
 import 'bus_screen.dart';
 import 'hospital_screen.dart';
+import 'news_screen.dart';
 import 'settings_screen.dart';
 import 'weather_screen.dart';
 
@@ -136,15 +137,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // 임시 안내 메시지
-  void _showTemporaryMessage(
-    BuildContext context,
-    String message,
-  ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+  // ==========================================
+  void _showTemporaryMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // 버스 화면 이동
@@ -153,9 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const BusScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const BusScreen()),
     );
 
     // 버스화면에서 즐겨찾기를 변경했을 수 있으므로 다시 확인
@@ -166,9 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _goToHospitalScreen(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const HospitalScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const HospitalScreen()),
     );
   }
 
@@ -186,24 +179,86 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _goToNewsScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NewsScreen()),
+    );
+  }
 
+  // ==========================================
+  // SOS 선택창
+  // ==========================================
+  void _showSosMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '긴급 도움',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  '필요한 도움을 선택해 주세요.',
+                  style: TextStyle(fontSize: 18, color: Colors.black54),
+                ),
+
+                const SizedBox(height: 24),
+
+                // SOS 항목 반복 생성
+                for (int i = 0; i < _sosOptions.length; i++) ...[
+                  ListTile(
+                    leading: Icon(
+                      _sosOptions[i].icon,
+                      color: _sosOptions[i].iconColor,
+                      size: 32,
+                    ),
+                    title: Text(
+                      _sosOptions[i].title,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(_sosOptions[i].subtitle),
+                    onTap: () {
+                      Navigator.pop(bottomSheetContext);
+
+                      _showTemporaryMessage(context, _sosOptions[i].message);
+                    },
+                  ),
+
+                  if (i != _sosOptions.length - 1) const Divider(),
+                ],
+
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ==========================================
   // 현재 위치 표시
   Widget _buildLocationBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        6,
-        16,
-        10,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Row(
           children: [
-            const Icon(
-              Icons.location_on,
-              size: 24,
-            ),
+            const Icon(Icons.location_on, size: 24),
 
             const SizedBox(width: 6),
 
@@ -252,12 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // 날씨 카드
           HomeWeatherCard(
             weather: mockWeather,
-            onTap: () {
-              _showTemporaryMessage(
-                context,
-                '날씨 화면은 B팀과 연계 예정입니다. (임시)',
-              );
-            },
+            onTap: () => _goToWeatherScreen(context),
           ),
 
           const SizedBox(height: 14),
@@ -265,12 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // 지역 소식 카드
           HomeNewsCard(
             newsList: mockNewsList,
-            onTap: () {
-              _showTemporaryMessage(
-                context,
-                '지역 소식 화면은 B팀과 연계 예정입니다. (임시)',
-              );
-            },
+            onTap: () => _goToNewsScreen(context),
           ),
         ],
       ),
@@ -296,42 +341,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 showSosMenu(context);
               },
               onSettingsTap: () {
-                _showTemporaryMessage(
-                  context,
-                  '설정 화면은 B팀과 연계 예정입니다. (임시)',
-                );
+                _goToSettingsScreen(context);
               },
             ),
 
             // 현재 위치
             _buildLocationBar(),
 
-            const Divider(
-              height: 1,
-            ),
+            const Divider(height: 1),
 
             // 메인 카드 영역
-            Expanded(
-              child: _buildCardList(context),
-            ),
+            Expanded(child: _buildCardList(context)),
 
             // 공통 음성 인식 버튼
             Container(
-              padding: const EdgeInsets.fromLTRB(
-                16,
-                8,
-                16,
-                16,
-              ),
-              decoration: const BoxDecoration(
-                color: _backgroundColor,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              decoration: const BoxDecoration(color: _backgroundColor),
               child: VoiceButton(
                 onTap: () {
-                  _showTemporaryMessage(
-                    context,
-                    '음성 인식 기능은 추후 연결합니다. (임시)',
-                  );
+                  _showTemporaryMessage(context, '음성 인식 기능은 추후 연결합니다. (임시)');
                 },
               ),
             ),
