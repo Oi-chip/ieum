@@ -7,6 +7,7 @@ import '../widgets/home_bus_card.dart';
 import '../widgets/home_hospital_card.dart';
 import '../widgets/home_news_card.dart';
 import '../widgets/home_weather_card.dart';
+import '../widgets/sos_menu.dart';
 import '../widgets/voice_button.dart';
 
 import 'bus_screen.dart';
@@ -14,60 +15,13 @@ import 'hospital_screen.dart';
 import 'settings_screen.dart';
 import 'weather_screen.dart';
 
-// ==========================================
-// SOS 메뉴 항목 데이터
-// ==========================================
-class _SosOption {
-  const _SosOption({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.message,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final String message;
-}
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   static const Color _backgroundColor = Color(0xFFF8FAFC);
 
-  // ==========================================
-  // SOS 선택 항목
-  // ==========================================
-  static const List<_SosOption> _sosOptions = [
-    _SosOption(
-      icon: Icons.local_phone,
-      iconColor: Colors.red,
-      title: '119',
-      subtitle: '119 전화 연결 기능 (추후 구현)',
-      message: '119 전화 연결 기능은 추후 구현합니다. (임시)',
-    ),
-    _SosOption(
-      icon: Icons.person,
-      iconColor: Colors.black87,
-      title: '보호자에게 연락',
-      subtitle: '등록된 보호자 연락 기능 (추후 구현)',
-      message: '보호자 연락 기능은 추후 구현합니다. (임시)',
-    ),
-    _SosOption(
-      icon: Icons.local_hospital,
-      iconColor: Colors.red,
-      title: '가까운 응급실',
-      subtitle: '가까운 응급실 검색 기능 (추후 구현)',
-      message: '가까운 응급실 검색 기능은 추후 구현합니다. (임시)',
-    ),
-  ];
-
-  // ==========================================
   // 임시 안내 메시지
-  // ==========================================
   void _showTemporaryMessage(
     BuildContext context,
     String message,
@@ -79,9 +33,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
   // 버스 화면 이동
-  // ==========================================
   void _goToBusScreen(BuildContext context) {
     Navigator.push(
       context,
@@ -91,9 +43,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
   // 병원 화면 이동
-  // ==========================================
   void _goToHospitalScreen(BuildContext context) {
     Navigator.push(
       context,
@@ -117,84 +67,8 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
-  // SOS 선택창
-  // ==========================================
-  void _showSosMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (bottomSheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '긴급 도움',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
 
-                const SizedBox(height: 8),
-
-                const Text(
-                  '필요한 도움을 선택해 주세요.',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.black54,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // SOS 항목 반복 생성
-                for (int i = 0; i < _sosOptions.length; i++) ...[
-                  ListTile(
-                    leading: Icon(
-                      _sosOptions[i].icon,
-                      color: _sosOptions[i].iconColor,
-                      size: 32,
-                    ),
-                    title: Text(
-                      _sosOptions[i].title,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(
-                      _sosOptions[i].subtitle,
-                    ),
-                    onTap: () {
-                      Navigator.pop(bottomSheetContext);
-
-                      _showTemporaryMessage(
-                        context,
-                        _sosOptions[i].message,
-                      );
-                    },
-                  ),
-
-                  if (i != _sosOptions.length - 1)
-                    const Divider(),
-                ],
-
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ==========================================
   // 현재 위치 표시
-  // ==========================================
   Widget _buildLocationBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -229,9 +103,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
   // 메인 카드 목록
-  // ==========================================
   Widget _buildCardList(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -286,9 +158,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
   // 화면 구성
-  // ==========================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -302,8 +172,9 @@ class HomeScreen extends StatelessWidget {
             // SOS / 이음 / 설정
             // ==========================================
             AppTopBar(
+              title : '이음',
               onSosTap: () {
-                _showSosMenu(context);
+                showSosMenu(context);
               },
               onSettingsTap: () {
                 _showTemporaryMessage(
@@ -325,9 +196,7 @@ class HomeScreen extends StatelessWidget {
               child: _buildCardList(context),
             ),
 
-            // ==========================================
             // 공통 음성 인식 버튼
-            // ==========================================
             Container(
               padding: const EdgeInsets.fromLTRB(
                 16,

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 class AppTopBar extends StatelessWidget {
+  final String title;
   final VoidCallback onSosTap;
   final VoidCallback onSettingsTap;
 
   const AppTopBar({
     super.key,
+    required this.title,
     required this.onSosTap,
     required this.onSettingsTap,
   });
@@ -47,12 +49,12 @@ class AppTopBar extends StatelessWidget {
             ),
           ),
 
-          // 앱 이름
-          const Expanded(
+          // 화면 제목
+          Expanded(
             child: Center(
               child: Text(
-                '이음',
-                style: TextStyle(
+                title,
+                style: const TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
                 ),
@@ -66,8 +68,6 @@ class AppTopBar extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onSettingsTap,
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.black,
-                side: const BorderSide(color: Colors.black),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 12,
