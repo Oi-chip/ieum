@@ -49,8 +49,10 @@ class HomeBusCard extends StatelessWidget {
                 children: [
                   Text(
                     bus.stopName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
