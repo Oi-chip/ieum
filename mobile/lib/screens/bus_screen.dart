@@ -465,6 +465,10 @@ class _BusScreenState extends State<BusScreen> {
                       const SizedBox(height: 20),
 
                       _buildBusList(),
+
+                      const SizedBox(height: 24),
+
+                      _buildHomeButton(),
                     ],
                   ),
                 ),
@@ -708,6 +712,40 @@ class _BusScreenState extends State<BusScreen> {
             const SizedBox(height: 14),
         ],
       ],
+    );
+  }
+
+  // 홈 화면으로 돌아가는 버튼
+  Widget _buildHomeButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 58,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          Navigator.pop(context);
+        },
+        icon: const Icon(
+          Icons.home_outlined,
+          size: 26,
+        ),
+        label: const Text(
+          '홈 화면으로',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.black87,
+          side: const BorderSide(
+            color: Color(0xFF90CAF9),
+            width: 2,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
     );
   }
 
