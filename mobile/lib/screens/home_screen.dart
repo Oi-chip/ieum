@@ -214,32 +214,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // SOS 항목 반복 생성
-                for (int i = 0; i < _sosOptions.length; i++) ...[
-                  ListTile(
-                    leading: Icon(
-                      _sosOptions[i].icon,
-                      color: _sosOptions[i].iconColor,
-                      size: 32,
-                    ),
-                    title: Text(
-                      _sosOptions[i].title,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(_sosOptions[i].subtitle),
-                    onTap: () {
-                      Navigator.pop(bottomSheetContext);
-
-                      _showTemporaryMessage(context, _sosOptions[i].message);
-                    },
-                  ),
-
-                  if (i != _sosOptions.length - 1) const Divider(),
-                ],
-
                 const SizedBox(height: 12),
               ],
             ),
