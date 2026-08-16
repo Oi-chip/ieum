@@ -64,61 +64,64 @@ class HospitalCard extends StatelessWidget {
 
             const SizedBox(width: 14),
 
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 진료 여부
-                Row(
-                  children: [
-                    Icon(
-                      Icons.circle,
-                      size: 20,
-                      color: hospital.isOpen
-                          ? Colors.green
-                          : Colors.red,
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 진료 여부
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.circle,
+                        size: 20,
+                        color: hospital.isOpen
+                            ? Colors.green
+                            : Colors.red,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        hospital.isOpen
+                            ? '진료 중'
+                            : '진료 종료',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // 운영 시간
+                  Text(
+                    hospital.operatingTime,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      hospital.isOpen
-                          ? '진료 중'
-                          : '진료 종료',
-                      style: const TextStyle(
-                        fontSize: 20,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // 전화하기
+                  TextButton.icon(
+                    onPressed: onCallTap,
+                    icon: const Icon(
+                      Icons.phone,
+                      size: 24,
+                    ),
+                    label: const Text(
+                      '전화하기',
+                      style: TextStyle(
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // 운영 시간
-                Text(
-                  hospital.operatingTime,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
                   ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // 전화하기
-                TextButton.icon(
-                  onPressed: onCallTap,
-                  icon: const Icon(
-                    Icons.phone,
-                    size: 24,
-                  ),
-                  label: const Text(
-                    '전화하기',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

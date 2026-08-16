@@ -95,10 +95,10 @@ class HospitalDetailScreen extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F3FF),
+        color: const Color(0xFFEAF7EE),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: const Color(0xFF90CAF9),
+          color: const Color(0xFF81C784),
           width: 2,
         ),
       ),
