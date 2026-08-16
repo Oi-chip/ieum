@@ -5,13 +5,11 @@ import '../models/home_data.dart';
 class HomeHospitalCard extends StatelessWidget {
   final HospitalSummary hospital;
   final VoidCallback onTap;
-  final VoidCallback onSosTap;
 
   const HomeHospitalCard({
     super.key,
     required this.hospital,
     required this.onTap,
-    required this.onSosTap,
   });
 
   @override
@@ -62,7 +60,7 @@ class HomeHospitalCard extends StatelessWidget {
                   Text(
                     hospital.hospitalName,
                     style: const TextStyle(
-                      fontSize: 25,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -79,29 +77,9 @@ class HomeHospitalCard extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(width: 8),
-
-            Material(
-              color: Colors.red,
-              borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                onTap: onSosTap,
-                borderRadius: BorderRadius.circular(14),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 16,
-                  ),
-                  child: Text(
-                    'SOS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+            const Icon(
+              Icons.chevron_right,
+              size: 34,
             ),
           ],
         ),
