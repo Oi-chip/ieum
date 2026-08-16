@@ -214,32 +214,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // SOS 항목 반복 생성
-                for (int i = 0; i < _sosOptions.length; i++) ...[
-                  ListTile(
-                    leading: Icon(
-                      _sosOptions[i].icon,
-                      color: _sosOptions[i].iconColor,
-                      size: 32,
-                    ),
-                    title: Text(
-                      _sosOptions[i].title,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(_sosOptions[i].subtitle),
-                    onTap: () {
-                      Navigator.pop(bottomSheetContext);
-
-                      _showTemporaryMessage(context, _sosOptions[i].message);
-                    },
-                  ),
-
-                  if (i != _sosOptions.length - 1) const Divider(),
-                ],
-
                 const SizedBox(height: 12),
               ],
             ),
@@ -253,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // 현재 위치 표시
   Widget _buildLocationBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Row(
@@ -280,9 +254,14 @@ class _HomeScreenState extends State<HomeScreen> {
   // 메인 카드 목록
   Widget _buildCardList(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 3, 16, 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          //현재 위치
+          _buildLocationBar(),
+          const SizedBox(height: 4),
+
           // 버스 카드
           HomeBusCard(
             bus: _homeBus,
@@ -344,9 +323,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 _goToSettingsScreen(context);
               },
             ),
-
-            // 현재 위치
-            _buildLocationBar(),
 
             const Divider(height: 1),
 
