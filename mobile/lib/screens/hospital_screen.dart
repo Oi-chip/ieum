@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../mock_data/hospital_mock_data.dart';
 import '../models/hospital_data.dart';
+import '../services/call_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/sos_menu.dart';
@@ -56,11 +57,28 @@ class _HospitalScreenState extends State<HospitalScreen> {
     });
   }
 
-  // 전화하기
-  void _callHospital(HospitalData hospital) {
-    _showTemporaryMessage(
-      '${hospital.hospitalName} 전화 연결 기능은 추후 구현합니다. (임시)',
-    );
+  // 병원 전화하기
+  Future<void> _callHospital(HospitalData hospital) async {
+    final phoneNumber = hospital.phoneNumber;
+
+    if (phoneNumber == null || phoneNumber.trim().isEmpty) {
+      _showTemporaryMessage(
+        '등록된 전화번호가 없습니다.',
+      );
+      return;
+    }
+
+    final success = await CallService.call(phoneNumber);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!success) {
+      _showTemporaryMessage(
+        '전화 앱을 실행하지 못했습니다.',
+      );
+    }
   }
 
   // 병원 상세화면 이동

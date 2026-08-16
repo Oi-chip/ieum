@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/hospital_data.dart';
+import '../services/call_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/sos_menu.dart';
 import '../widgets/voice_button.dart';
@@ -25,12 +26,32 @@ class HospitalDetailScreen extends StatelessWidget {
     );
   }
 
-  // 전화하기
-  void _callHospital(BuildContext context) {
-    _showTemporaryMessage(
-      context,
-      '${hospital.hospitalName} 전화 연결 기능은 추후 구현합니다. (임시)',
-    );
+  // 병원 전화하기
+  Future<void> _callHospital(
+    BuildContext context,
+  ) async {
+    final phoneNumber = hospital.phoneNumber;
+
+    if (phoneNumber == null || phoneNumber.trim().isEmpty) {
+      _showTemporaryMessage(
+        context,
+        '등록된 전화번호가 없습니다.',
+      );
+      return;
+    }
+
+    final success = await CallService.call(phoneNumber);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    if (!success) {
+      _showTemporaryMessage(
+        context,
+        '전화 앱을 실행하지 못했습니다.',
+      );
+    }
   }
 
   // 병원 목록으로 돌아가기
@@ -267,11 +288,12 @@ class HospitalDetailScreen extends StatelessWidget {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-            onPressed: hospital.phoneNumber == null
+            onPressed: hospital.phoneNumber == null ||
+                    hospital.phoneNumber!.trim().isEmpty
                 ? null
                 : () {
                     _callHospital(context);
-                    },
+                  },
             icon: const Icon(
                 Icons.phone,
                 size: 24,
