@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../mock_data/home_mock_data.dart';
@@ -27,7 +28,6 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-
 class _HomeScreenState extends State<HomeScreen> {
   static const Color _backgroundColor = Color(0xFFF8FAFC);
 
@@ -186,6 +186,34 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // 메인 화면 음성 명령 처리
+  void _handleVoiceCommand(BuildContext context, String text) {
+    final command = text.toLowerCase().replaceAll(' ', '');
+
+    if (command.contains('긴급') ||
+        command.contains('도와줘') ||
+        command.contains('에스오에스')) {
+      showSosMenu(context);
+    } else if (command.contains('버스')) {
+      _goToBusScreen(context);
+    } else if (command.contains('병원') || command.contains('의원')) {
+      _goToHospitalScreen(context);
+    } else if (command.contains('날씨') || command.contains('기온')) {
+      _goToWeatherScreen(context);
+    } else if (command.contains('소식') ||
+        command.contains('뉴스') ||
+        command.contains('공지')) {
+      _goToNewsScreen(context);
+    } else if (command.contains('설정')) {
+      _goToSettingsScreen(context);
+    } else {
+      _showTemporaryMessage(
+        context,
+        "'$text'(으)로 인식했습니다. 버스, 병원, 날씨, 지역 소식 또는 설정이라고 말해 주세요.",
+      );
+    }
+  }
+
   // ==========================================
   // SOS 선택창
   // ==========================================
@@ -334,9 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               decoration: const BoxDecoration(color: _backgroundColor),
               child: VoiceButton(
-                onTap: () {
-                  _showTemporaryMessage(context, '음성 인식 기능은 추후 연결합니다. (임시)');
-                },
+                onResult: (text) => _handleVoiceCommand(context, text),
               ),
             ),
           ],

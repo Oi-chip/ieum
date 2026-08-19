@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../mock_data/hospital_mock_data.dart';
@@ -55,6 +56,43 @@ class _HospitalScreenState extends State<HospitalScreen> {
     setState(() {
       _displayedHospitals = List.from(mockHospitalList);
     });
+  }
+
+  // 병원 화면 음성 명령 처리
+  void _handleVoiceCommand(String text) {
+    final command = text.toLowerCase().replaceAll(' ', '');
+
+    if (command.contains('뒤로') ||
+        command.contains('홈') ||
+        command.contains('나가기')) {
+      Navigator.pop(context);
+      return;
+    }
+
+    if ((command.contains('가까운') || command.contains('주변')) &&
+        (command.contains('병원') || command.contains('의원'))) {
+      _clearSearch();
+      _showTemporaryMessage('가까운 병원 목록을 표시합니다.');
+      return;
+    }
+
+    final keyword = text
+        .replaceFirst(RegExp(r'^병원\s*검색\s*'), '')
+        .replaceAll(
+          RegExp(
+            r'(검색해\s*줘|검색|찾아\s*줘|알려\s*줘|보여\s*줘)$',
+          ),
+          '',
+        )
+        .trim();
+
+    if (keyword.isEmpty) {
+      _showTemporaryMessage('검색할 병원 이름을 말해 주세요.');
+      return;
+    }
+
+    _searchController.text = keyword;
+    _searchHospital();
   }
 
   // 병원 전화하기
@@ -316,11 +354,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
       ),
       color: const Color(0xFFF8FAFC),
       child: VoiceButton(
-        onTap: () {
-          _showTemporaryMessage(
-            '음성 인식 기능은 추후 연결합니다. (임시)',
-          );
-        },
+        onResult: _handleVoiceCommand,
       ),
     );
   }

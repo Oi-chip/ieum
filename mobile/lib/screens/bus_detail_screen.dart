@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../mock_data/bus_mock_data.dart';
@@ -69,6 +70,51 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     setState(() {
       _isFavorite = isFavorite;
     });
+  }
+
+  // 버스 상세 화면 음성 명령 처리
+  Future<void> _handleVoiceCommand(String text) async {
+    final command = text.toLowerCase().replaceAll(' ', '');
+
+    if (command.contains('뒤로') ||
+        command.contains('목록') ||
+        command.contains('나가기')) {
+      _goBackToBusList();
+      return;
+    }
+
+    if (command.contains('즐겨찾기')) {
+      final wantsRemoval = command.contains('해제') ||
+          command.contains('취소') ||
+          command.contains('삭제');
+      final wantsAddition = command.contains('추가') ||
+          command.contains('등록');
+
+      if ((wantsRemoval && !_isFavorite) ||
+          (wantsAddition && _isFavorite)) {
+        _showTemporaryMessage(
+          _isFavorite
+              ? '이미 즐겨찾기에 등록되어 있습니다.'
+              : '이미 즐겨찾기가 해제되어 있습니다.',
+        );
+        return;
+      }
+
+      await _toggleFavorite();
+      if (!mounted) {
+        return;
+      }
+      _showTemporaryMessage(
+        _isFavorite
+            ? '즐겨찾기에 추가했습니다.'
+            : '즐겨찾기를 해제했습니다.',
+      );
+      return;
+    }
+
+    _showTemporaryMessage(
+      "'$text'(으)로 인식했습니다. 즐겨찾기 또는 목록으로라고 말해 주세요.",
+    );
   }
 
   // 버스 목록 화면으로 돌아가기
@@ -446,11 +492,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       ),
       color: const Color(0xFFF8FAFC),
       child: VoiceButton(
-        onTap: () {
-          _showTemporaryMessage(
-            '음성 인식 기능은 추후 연결합니다. (임시)',
-          );
-        },
+        onResult: _handleVoiceCommand,
       ),
     );
   }
