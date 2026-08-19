@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../models/hospital_data.dart';
@@ -57,6 +58,24 @@ class HospitalDetailScreen extends StatelessWidget {
   // 병원 목록으로 돌아가기
   void _goBackToHospitalList(BuildContext context) {
     Navigator.pop(context);
+  }
+
+  // 병원 상세 화면 음성 명령 처리
+  void _handleVoiceCommand(BuildContext context, String text) {
+    final command = text.toLowerCase().replaceAll(' ', '');
+
+    if (command.contains('뒤로') ||
+        command.contains('목록') ||
+        command.contains('나가기')) {
+      _goBackToHospitalList(context);
+    } else if (command.contains('전화')) {
+      _callHospital(context);
+    } else {
+      _showTemporaryMessage(
+        context,
+        "'$text'(으)로 인식했습니다. 전화 또는 목록으로라고 말해 주세요.",
+      );
+    }
   }
 
   @override
@@ -346,12 +365,7 @@ class HospitalDetailScreen extends StatelessWidget {
       ),
       color: const Color(0xFFF8FAFC),
       child: VoiceButton(
-        onTap: () {
-          _showTemporaryMessage(
-            context,
-            '음성 인식 기능은 추후 연결합니다. (임시)',
-          );
-        },
+        onResult: (text) => _handleVoiceCommand(context, text),
       ),
     );
   }

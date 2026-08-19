@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../mock_data/bus_mock_data.dart';
@@ -290,6 +291,41 @@ class _BusScreenState extends State<BusScreen> {
         mockBusListByStop[_selectedStop.stopId] ?? [],
       );
     });
+  }
+
+  // 버스 화면 음성 명령 처리
+  void _handleVoiceCommand(String text) {
+    final command = text.toLowerCase().replaceAll(' ', '');
+
+    if (command.contains('뒤로') ||
+        command.contains('홈') ||
+        command.contains('나가기')) {
+      Navigator.pop(context);
+      return;
+    }
+
+    if (command.contains('새로고침') || command.contains('갱신')) {
+      _refreshBusData();
+      return;
+    }
+
+    final destination = text
+        .replaceAll(
+          RegExp(
+            r'(버스|도착\s*지역|목적지|가는|가려는|검색해\s*줘|검색|찾아\s*줘|알려\s*줘|보여\s*줘)',
+          ),
+          ' ',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    if (destination.isEmpty) {
+      _showTemporaryMessage('찾을 목적지를 말해 주세요.');
+      return;
+    }
+
+    _searchController.text = destination;
+    _searchDestination();
   }
 
   // 버스 카드 선택
@@ -760,11 +796,7 @@ class _BusScreenState extends State<BusScreen> {
       ),
       color: const Color(0xFFF8FAFC),
       child: VoiceButton(
-        onTap: () {
-          _showTemporaryMessage(
-            '음성 인식 기능은 추후 연결합니다. (임시)',
-          );
-        },
+        onResult: _handleVoiceCommand,
       ),
     );
   }
