@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../mock_data/home_mock_data.dart';
@@ -27,7 +28,6 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-
 class _HomeScreenState extends State<HomeScreen> {
   static const Color _backgroundColor = Color(0xFFF8FAFC);
 
@@ -186,6 +186,34 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // 메인 화면 음성 명령 처리
+  void _handleVoiceCommand(BuildContext context, String text) {
+    final command = text.toLowerCase().replaceAll(' ', '');
+
+    if (command.contains('긴급') ||
+        command.contains('도와줘') ||
+        command.contains('에스오에스')) {
+      showSosMenu(context);
+    } else if (command.contains('버스')) {
+      _goToBusScreen(context);
+    } else if (command.contains('병원') || command.contains('의원')) {
+      _goToHospitalScreen(context);
+    } else if (command.contains('날씨') || command.contains('기온')) {
+      _goToWeatherScreen(context);
+    } else if (command.contains('소식') ||
+        command.contains('뉴스') ||
+        command.contains('공지')) {
+      _goToNewsScreen(context);
+    } else if (command.contains('설정')) {
+      _goToSettingsScreen(context);
+    } else {
+      _showTemporaryMessage(
+        context,
+        "'$text'(으)로 인식했습니다. 버스, 병원, 날씨, 지역 소식 또는 설정이라고 말해 주세요.",
+      );
+    }
+  }
+
   // ==========================================
   // SOS 선택창
   // ==========================================
@@ -214,32 +242,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // SOS 항목 반복 생성
-                for (int i = 0; i < _sosOptions.length; i++) ...[
-                  ListTile(
-                    leading: Icon(
-                      _sosOptions[i].icon,
-                      color: _sosOptions[i].iconColor,
-                      size: 32,
-                    ),
-                    title: Text(
-                      _sosOptions[i].title,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Text(_sosOptions[i].subtitle),
-                    onTap: () {
-                      Navigator.pop(bottomSheetContext);
-
-                      _showTemporaryMessage(context, _sosOptions[i].message);
-                    },
-                  ),
-
-                  if (i != _sosOptions.length - 1) const Divider(),
-                ],
-
                 const SizedBox(height: 12),
               ],
             ),
@@ -253,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // 현재 위치 표시
   Widget _buildLocationBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Row(
@@ -280,9 +282,14 @@ class _HomeScreenState extends State<HomeScreen> {
   // 메인 카드 목록
   Widget _buildCardList(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 3, 16, 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          //현재 위치
+          _buildLocationBar(),
+          const SizedBox(height: 4),
+
           // 버스 카드
           HomeBusCard(
             bus: _homeBus,
@@ -345,9 +352,6 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
 
-            // 현재 위치
-            _buildLocationBar(),
-
             const Divider(height: 1),
 
             // 메인 카드 영역
@@ -358,9 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               decoration: const BoxDecoration(color: _backgroundColor),
               child: VoiceButton(
-                onTap: () {
-                  _showTemporaryMessage(context, '음성 인식 기능은 추후 연결합니다. (임시)');
-                },
+                onResult: (text) => _handleVoiceCommand(context, text),
               ),
             ),
           ],
