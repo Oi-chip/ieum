@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// 아직 구현되지 않은 SOS 기능의 임시 안내 메시지
+import '../screens/hospital_screen.dart';
+import '../services/call_service.dart';
+
+// SOS 실행에 실패했을 때 사용자에게 원인을 안내합니다.
 void _showTemporaryMessage(
   BuildContext context,
   String message,
@@ -55,16 +59,12 @@ void showSosMenu(BuildContext context) {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                subtitle: const Text(
-                  '119 전화 연결 기능 (추후 구현)',
-                ),
-                onTap: () {
+                subtitle: const Text('전화 앱에서 119로 연결합니다.'),
+                onTap: () async {
                   Navigator.pop(bottomSheetContext);
-
-                  _showTemporaryMessage(
-                    context,
-                    '119 전화 연결 기능은 추후 구현합니다. (임시)',
-                  );
+                  if (!await CallService.call('119') && context.mounted) {
+                    _showTemporaryMessage(context, '전화 앱을 실행하지 못했습니다.');
+                  }
                 },
               ),
 
@@ -83,16 +83,16 @@ void showSosMenu(BuildContext context) {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                subtitle: const Text(
-                  '등록된 보호자 연락 기능 (추후 구현)',
-                ),
-                onTap: () {
+                subtitle: const Text('설정에 저장한 긴급 연락망으로 전화합니다.'),
+                onTap: () async {
                   Navigator.pop(bottomSheetContext);
-
-                  _showTemporaryMessage(
-                    context,
-                    '보호자 연락 기능은 추후 구현합니다. (임시)',
-                  );
+                  final number = await SharedPreferencesAsync().getString('emergencyContact');
+                  if (!context.mounted) return;
+                  if (number == null || number.trim().isEmpty) {
+                    _showTemporaryMessage(context, '설정에서 긴급 연락망을 먼저 등록해 주세요.');
+                  } else if (!await CallService.call(number) && context.mounted) {
+                    _showTemporaryMessage(context, '전화 앱을 실행하지 못했습니다.');
+                  }
                 },
               ),
 
@@ -112,15 +112,12 @@ void showSosMenu(BuildContext context) {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                subtitle: const Text(
-                  '가까운 응급실 검색 기능 (추후 구현)',
-                ),
+                subtitle: const Text('현재 위치에서 가까운 응급실을 찾습니다.'),
                 onTap: () {
                   Navigator.pop(bottomSheetContext);
-
-                  _showTemporaryMessage(
+                  Navigator.push(
                     context,
-                    '가까운 응급실 검색 기능은 추후 구현합니다. (임시)',
+                    MaterialPageRoute(builder: (_) => const HospitalScreen(emergencyOnly: true)),
                   );
                 },
               ),

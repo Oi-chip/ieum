@@ -51,13 +51,25 @@ class HospitalCard extends StatelessWidget {
 
                   // 거리
                   Text(
-                    '${hospital.distanceKm.toStringAsFixed(1)}km (임시)',
+                    '${hospital.distanceKm.toStringAsFixed(1)}km',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: Colors.black54,
                     ),
                   ),
+                  if (hospital.address != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      hospital.address!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -75,15 +87,19 @@ class HospitalCard extends StatelessWidget {
                       Icon(
                         Icons.circle,
                         size: 20,
-                        color: hospital.isOpen
-                            ? Colors.green
-                            : Colors.red,
+                        color: hospital.isOpen == null
+                            ? Colors.orange
+                            : hospital.isOpen!
+                                ? Colors.green
+                                : Colors.red,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        hospital.isOpen
-                            ? '진료 중'
-                            : '진료 종료',
+                        hospital.isOpen == null
+                            ? '확인 필요'
+                            : hospital.isOpen!
+                                ? '진료 중'
+                                : '진료 종료',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,

@@ -1,19 +1,22 @@
 
 import 'package:flutter/material.dart';
 
-import '../mock_data/bus_mock_data.dart';
 import '../models/bus_data.dart';
+import '../services/api_service.dart';
 import '../services/favorite_bus_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/voice_button.dart';
 import '../widgets/sos_menu.dart';
+import 'settings_screen.dart';
 
 class BusDetailScreen extends StatefulWidget {
   final BusData bus;
+  final BusStopData stop;
 
   const BusDetailScreen({
     super.key,
     required this.bus,
+    required this.stop,
   });
 
   @override
@@ -23,17 +26,47 @@ class BusDetailScreen extends StatefulWidget {
 class _BusDetailScreenState extends State<BusDetailScreen> {
   late BusDetailData _detail;
   late bool _isFavorite;
+  bool _isLoadingRoute = true;
+  String? _routeError;
 
   @override
   void initState() {
     super.initState();
 
-    // 실제 API 연결 전 임시 상세정보 사용
-    _detail = getMockBusDetail(widget.bus);
+    _detail = BusDetailData(
+      nearbyStop: widget.stop,
+      bus: widget.bus,
+      stops: const [],
+    );
     _isFavorite = widget.bus.isFavorite;
 
     _loadFavorite();
+    _loadRoute();
   } 
+
+  Future<void> _loadRoute() async {
+    if (mounted) {
+      setState(() {
+        _isLoadingRoute = true;
+        _routeError = null;
+      });
+    }
+    try {
+      final detail = await ApiService.instance.getBusRoute(widget.stop, widget.bus);
+      if (!mounted) return;
+      setState(() {
+        _detail = detail;
+        _isLoadingRoute = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingRoute = false;
+        _routeError = error.toString();
+      });
+      _showTemporaryMessage(error.toString());
+    }
+  }
 
   // 휴대폰에 저장된 즐겨찾기 상태 불러오기
   Future<void> _loadFavorite() async {
@@ -159,8 +192,9 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
                   showSosMenu(context);
                 },
                 onSettingsTap: () {
-                  _showTemporaryMessage(
-                    '설정 화면은 B팀과 연계 예정입니다. (임시)',
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
                   );
                 },
               ),
@@ -237,7 +271,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${_detail.nearbyStop.distanceM}m (임시)',
+            '${_detail.nearbyStop.distanceM}m',
             style: const TextStyle(
               fontSize: 15,
               color: Colors.black54,
@@ -413,6 +447,28 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
 
           const SizedBox(height: 18),
 
+          if (_isLoadingRoute)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_routeError != null)
+            Center(
+              child: Column(
+                children: [
+                  Text(_routeError!, textAlign: TextAlign.center),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: _loadRoute,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('노선 다시 불러오기'),
+                  ),
+                ],
+              ),
+            ),
+
           for (int index = 0;
               index < _detail.stops.length;
               index++) ...[
@@ -443,7 +499,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
                       bottom: 20,
                     ),
                     child: Text(
-                      _detail.stops[index].stopName,
+                      _routeStopLabel(index),
                       style: const TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.w600,
@@ -502,10 +558,25 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     final end = _detail.bus.endStop;
 
     if (start != null && end != null) {
+      if (start == end) {
+        final via = _detail.bus.viaStop;
+        return via == null
+            ? '$start 출발·도착 순환노선'
+            : '$start → $via → $end';
+      }
       return '$start → $end';
     }
 
     return '노선 정보 없음';
+  }
+
+  String _routeStopLabel(int index) {
+    final stopName = _detail.stops[index].stopName;
+    final labels = <String>[];
+    if (index == 0) labels.add('출발');
+    if (stopName == _detail.bus.viaStop) labels.add('회차');
+    if (index == _detail.stops.length - 1) labels.add('도착');
+    return labels.isEmpty ? stopName : "$stopName (${labels.join('·')})";
   }
 
   String _buildArrivalText() {
@@ -513,7 +584,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       return '도착 정보 없음';
     }
 
-    return '${_detail.bus.arrivalMinutes}분 후 도착 (임시)';
+    return '${_detail.bus.arrivalMinutes}분 후 도착';
   }
 
   String _buildRemainingStopsText() {
@@ -521,7 +592,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       return '남은 정류장 정보 없음';
     }
 
-    return '${_detail.bus.remainingStops}개 정류장 전 (임시)';
+    return '${_detail.bus.remainingStops}개 정류장 전';
   }
 
   String _buildIntervalText() {
@@ -530,6 +601,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     }
 
     return '평일 배차간격 : '
-        '${_detail.weekdayIntervalMinutes}분 (임시)';
+        '${_detail.weekdayIntervalMinutes}분';
   }
 }

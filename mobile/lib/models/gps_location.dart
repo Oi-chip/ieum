@@ -8,6 +8,7 @@ class GpsLocation {
   final String? sigungu;
   final String? eupMyeonDong;
   final String? address;
+  final String? referenceName;
 
   const GpsLocation({
     required this.latitude,
@@ -18,6 +19,7 @@ class GpsLocation {
     this.sigungu,
     this.eupMyeonDong,
     this.address,
+    this.referenceName,
   });
 
   /// 병원 지역 검색에 필요한 시도와 시군구가 모두 있는지 확인합니다.
@@ -33,6 +35,7 @@ class GpsLocation {
       if (sido != null && sido!.isNotEmpty) sido!,
       if (sigungu != null && sigungu!.isNotEmpty) sigungu!,
       if (eupMyeonDong != null && eupMyeonDong!.isNotEmpty) eupMyeonDong!,
+      if (referenceName != null && referenceName!.isNotEmpty) referenceName!,
     ];
 
     return parts.isEmpty ? '현재 위치' : parts.toSet().join(' ');

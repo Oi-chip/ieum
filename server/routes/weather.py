@@ -18,7 +18,7 @@ def _error(code, message, status):
 def weather_forecast():
     try:
         nx = int(request.args.get("nx", "90"))
-        ny = int(request.args.get("ny", "106"))
+        ny = int(request.args.get("ny", "113"))
     except ValueError:
         return _error("INVALID_GRID", "nx와 ny는 정수여야 합니다.", 400)
     if not 1 <= nx <= 149 or not 1 <= ny <= 253:

@@ -33,4 +33,18 @@ void main() {
       'longitude': '128.7312033',
     });
   });
+
+  test('직접 선택 지역은 행정청을 조회 기준으로 표시한다', () {
+    final location = GpsLocation(
+      latitude: 36.89101,
+      longitude: 128.7331261,
+      accuracyM: 0,
+      measuredAt: DateTime(2026, 8, 21),
+      sido: '경상북도',
+      sigungu: '봉화군',
+      referenceName: '봉화군청',
+    );
+
+    expect(location.displayName, '경상북도 봉화군 봉화군청');
+  });
 }
