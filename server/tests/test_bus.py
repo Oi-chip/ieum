@@ -509,6 +509,10 @@ class BusServiceTest(unittest.TestCase):
         self.assertEqual(routes[0]["city_code"], "37410")
         self.assertEqual(routes[1]["city_code"], "37060")
         self.assertEqual(
+            [route["bus_number"] for route in routes],
+            ["33", "33"],
+        )
+        self.assertEqual(
             [call.kwargs["params"]["cityCode"] for call in mock_get.call_args_list],
             ["37410", "37060"],
         )

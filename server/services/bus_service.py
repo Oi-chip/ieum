@@ -39,6 +39,12 @@ ROUTE_PROVIDER_CITY_CODES = {
     "37410": ("37060",),
 }
 
+# TAGO returns an outdated route number for this Bonghwa-to-Yeongju route.
+# Keep the number shown in the app aligned with the current local route number.
+ROUTE_NUMBER_OVERRIDES = {
+    ("37410", "TSB371000049"): "33",
+}
+
 
 class BusServiceError(Exception):
     """버스 데이터를 정상적으로 가져오지 못했을 때 발생합니다."""
@@ -258,6 +264,13 @@ def _provider_city_codes(city_code):
     return (city_code, *ROUTE_PROVIDER_CITY_CODES.get(city_code, ()))
 
 
+def _route_number(city_code, route_id, value):
+    return ROUTE_NUMBER_OVERRIDES.get(
+        (str(city_code), str(route_id)),
+        str(value),
+    )
+
+
 def _turnaround_stop_name(stops, origin_name):
     if not stops:
         return None
@@ -297,7 +310,7 @@ def get_bus_route(city_code, route_id):
     try:
         route = {
             "id": str(item["routeid"]),
-            "number": str(item["routeno"]),
+            "number": _route_number(city_code, route_id, item["routeno"]),
             "type": item.get("routetp"),
             "start_stop": item.get("startnodenm"),
             "end_stop": item.get("endnodenm"),
@@ -377,7 +390,11 @@ def get_stop_routes(city_code, stop_id):
                 route = {
                     "route_id": str(item["routeid"]),
                     "city_code": provider_city_code,
-                    "bus_number": str(item["routeno"]),
+                    "bus_number": _route_number(
+                        provider_city_code,
+                        item["routeid"],
+                        item["routeno"],
+                    ),
                     "route_type": item.get("routetp"),
                     "start_stop": item.get("startnodenm"),
                     "end_stop": item.get("endnodenm"),
