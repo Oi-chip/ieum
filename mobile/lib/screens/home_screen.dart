@@ -1,105 +1,167 @@
 import 'package:flutter/material.dart';
 
 import '../mock_data/home_mock_data.dart';
+import '../mock_data/bus_mock_data.dart';
+import '../models/bus_data.dart';
+import '../models/home_data.dart';
+import '../services/favorite_bus_service.dart';
 
 import '../widgets/app_top_bar.dart';
 import '../widgets/home_bus_card.dart';
 import '../widgets/home_hospital_card.dart';
 import '../widgets/home_news_card.dart';
 import '../widgets/home_weather_card.dart';
+import '../widgets/sos_menu.dart';
 import '../widgets/voice_button.dart';
 
 import 'bus_screen.dart';
 import 'hospital_screen.dart';
+import 'news_screen.dart';
 import 'settings_screen.dart';
 import 'weather_screen.dart';
 
-// ==========================================
-// SOS 메뉴 항목 데이터
-// ==========================================
-class _SosOption {
-  const _SosOption({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.message,
-  });
 
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final String message;
-}
-
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
   static const Color _backgroundColor = Color(0xFFF8FAFC);
 
-  // ==========================================
-  // SOS 선택 항목
-  // ==========================================
-  static const List<_SosOption> _sosOptions = [
-    _SosOption(
-      icon: Icons.local_phone,
-      iconColor: Colors.red,
-      title: '119',
-      subtitle: '119 전화 연결 기능 (추후 구현)',
-      message: '119 전화 연결 기능은 추후 구현합니다. (임시)',
-    ),
-    _SosOption(
-      icon: Icons.person,
-      iconColor: Colors.black87,
-      title: '보호자에게 연락',
-      subtitle: '등록된 보호자 연락 기능 (추후 구현)',
-      message: '보호자 연락 기능은 추후 구현합니다. (임시)',
-    ),
-    _SosOption(
-      icon: Icons.local_hospital,
-      iconColor: Colors.red,
-      title: '가까운 응급실',
-      subtitle: '가까운 응급실 검색 기능 (추후 구현)',
-      message: '가까운 응급실 검색 기능은 추후 구현합니다. (임시)',
-    ),
-  ];
+  BusSummary _homeBus = mockBus;
 
-  // ==========================================
+  @override
+  void initState() {
+    super.initState();
+
+    _loadHomeBus();
+  }
+
+  // 저장된 즐겨찾기를 반영해 메인화면에 표시할 버스 선택
+  Future<void> _loadHomeBus() async {
+    final favoriteRouteIds =
+        await FavoriteBusService.getFavoriteRouteIds();
+
+    final candidates = <BusData>[];
+
+    for (final buses in mockBusListByStop.values) {
+      candidates.addAll(buses);
+    }
+
+    if (candidates.isEmpty) {
+      return;
+    }
+
+    candidates.sort((a, b) {
+      final aFavorite =
+          favoriteRouteIds.contains(a.routeId);
+      final bFavorite =
+          favoriteRouteIds.contains(b.routeId);
+
+      // 즐겨찾기 버스를 우선 표시
+      if (aFavorite != bFavorite) {
+        return aFavorite ? -1 : 1;
+      }
+
+      // 같은 조건에서는 도착시간이 빠른 버스를 우선 표시
+      final aArrival =
+          a.arrivalMinutes ?? 999999;
+      final bArrival =
+          b.arrivalMinutes ?? 999999;
+
+      return aArrival.compareTo(bArrival);
+    });
+
+    final selectedBus = candidates.first;
+    final selectedStopName =
+        _findStopNameForBus(selectedBus);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _homeBus = BusSummary(
+        stopName: selectedStopName,
+        busNumber: selectedBus.busNumber,
+        route: _buildHomeRouteText(selectedBus),
+        arrivalTime:
+            _buildHomeArrivalText(selectedBus),
+      );
+    });
+  }
+
+  // 선택한 버스가 어느 정류장에서 출발하는지 찾기
+  String _findStopNameForBus(BusData bus) {
+    for (final entry in mockBusListByStop.entries) {
+      final containsBus = entry.value.any(
+        (item) => item.routeId == bus.routeId,
+      );
+
+      if (!containsBus) {
+        continue;
+      }
+
+      for (final stop in mockNearbyBusStops) {
+        if (stop.stopId == entry.key) {
+          return '정류장 : ${stop.stopName}';
+        }
+      }
+    }
+
+    return '정류장 정보 없음 (임시)';
+  }
+
+  // 메인 카드 노선 문구 생성
+  String _buildHomeRouteText(BusData bus) {
+    final start = bus.startStop;
+    final end = bus.endStop;
+
+    if (start != null && end != null) {
+      return '$start → $end';
+    }
+
+    return '노선 정보 없음 (임시)';
+  }
+
+  // 메인 카드 도착시간 문구 생성
+  String _buildHomeArrivalText(BusData bus) {
+    if (bus.arrivalMinutes == null) {
+      return '도착 정보 없음';
+    }
+
+    return '${bus.arrivalMinutes}분 후 도착 (임시)';
+  }
+
   // 임시 안내 메시지
   // ==========================================
-  void _showTemporaryMessage(
-    BuildContext context,
-    String message,
-  ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
-  }
-
-  // ==========================================
-  // 버스 화면 이동
-  // ==========================================
-  void _goToBusScreen(BuildContext context) {
-    Navigator.push(
+  void _showTemporaryMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
       context,
-      MaterialPageRoute(
-        builder: (context) => const BusScreen(),
-      ),
-    );
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  // ==========================================
+  // 버스 화면 이동
+  Future<void> _goToBusScreen(
+    BuildContext context,
+  ) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BusScreen()),
+    );
+
+    // 버스화면에서 즐겨찾기를 변경했을 수 있으므로 다시 확인
+    await _loadHomeBus();
+  }
+
   // 병원 화면 이동
-  // ==========================================
   void _goToHospitalScreen(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const HospitalScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const HospitalScreen()),
     );
   }
 
@@ -114,6 +176,13 @@ class HomeScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const SettingsScreen()),
+    );
+  }
+
+  void _goToNewsScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NewsScreen()),
     );
   }
 
@@ -133,20 +202,14 @@ class HomeScreen extends StatelessWidget {
               children: [
                 const Text(
                   '긴급 도움',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 8),
 
                 const Text(
                   '필요한 도움을 선택해 주세요.',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.black54,
-                  ),
+                  style: TextStyle(fontSize: 18, color: Colors.black54),
                 ),
 
                 const SizedBox(height: 24),
@@ -166,21 +229,15 @@ class HomeScreen extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    subtitle: Text(
-                      _sosOptions[i].subtitle,
-                    ),
+                    subtitle: Text(_sosOptions[i].subtitle),
                     onTap: () {
                       Navigator.pop(bottomSheetContext);
 
-                      _showTemporaryMessage(
-                        context,
-                        _sosOptions[i].message,
-                      );
+                      _showTemporaryMessage(context, _sosOptions[i].message);
                     },
                   ),
 
-                  if (i != _sosOptions.length - 1)
-                    const Divider(),
+                  if (i != _sosOptions.length - 1) const Divider(),
                 ],
 
                 const SizedBox(height: 12),
@@ -194,23 +251,14 @@ class HomeScreen extends StatelessWidget {
 
   // ==========================================
   // 현재 위치 표시
-  // ==========================================
   Widget _buildLocationBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        6,
-        16,
-        10,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Row(
           children: [
-            const Icon(
-              Icons.location_on,
-              size: 24,
-            ),
+            const Icon(Icons.location_on, size: 24),
 
             const SizedBox(width: 6),
 
@@ -229,9 +277,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ==========================================
   // 메인 카드 목록
-  // ==========================================
   Widget _buildCardList(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -239,7 +285,7 @@ class HomeScreen extends StatelessWidget {
         children: [
           // 버스 카드
           HomeBusCard(
-            bus: mockBus,
+            bus: _homeBus,
             onTap: () {
               _goToBusScreen(context);
             },
@@ -261,12 +307,7 @@ class HomeScreen extends StatelessWidget {
           // 날씨 카드
           HomeWeatherCard(
             weather: mockWeather,
-            onTap: () {
-              _showTemporaryMessage(
-                context,
-                '날씨 화면은 B팀과 연계 예정입니다. (임시)',
-              );
-            },
+            onTap: () => _goToWeatherScreen(context),
           ),
 
           const SizedBox(height: 14),
@@ -274,21 +315,14 @@ class HomeScreen extends StatelessWidget {
           // 지역 소식 카드
           HomeNewsCard(
             newsList: mockNewsList,
-            onTap: () {
-              _showTemporaryMessage(
-                context,
-                '지역 소식 화면은 B팀과 연계 예정입니다. (임시)',
-              );
-            },
+            onTap: () => _goToNewsScreen(context),
           ),
         ],
       ),
     );
   }
 
-  // ==========================================
   // 화면 구성
-  // ==========================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -302,48 +336,30 @@ class HomeScreen extends StatelessWidget {
             // SOS / 이음 / 설정
             // ==========================================
             AppTopBar(
+              title : '이음',
               onSosTap: () {
-                _showSosMenu(context);
+                showSosMenu(context);
               },
               onSettingsTap: () {
-                _showTemporaryMessage(
-                  context,
-                  '설정 화면은 B팀과 연계 예정입니다. (임시)',
-                );
+                _goToSettingsScreen(context);
               },
             ),
 
             // 현재 위치
             _buildLocationBar(),
 
-            const Divider(
-              height: 1,
-            ),
+            const Divider(height: 1),
 
             // 메인 카드 영역
-            Expanded(
-              child: _buildCardList(context),
-            ),
+            Expanded(child: _buildCardList(context)),
 
-            // ==========================================
             // 공통 음성 인식 버튼
-            // ==========================================
             Container(
-              padding: const EdgeInsets.fromLTRB(
-                16,
-                8,
-                16,
-                16,
-              ),
-              decoration: const BoxDecoration(
-                color: _backgroundColor,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              decoration: const BoxDecoration(color: _backgroundColor),
               child: VoiceButton(
                 onTap: () {
-                  _showTemporaryMessage(
-                    context,
-                    '음성 인식 기능은 추후 연결합니다. (임시)',
-                  );
+                  _showTemporaryMessage(context, '음성 인식 기능은 추후 연결합니다. (임시)');
                 },
               ),
             ),
