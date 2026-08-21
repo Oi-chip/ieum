@@ -2,10 +2,12 @@
 import 'package:flutter/material.dart';
 
 import '../mock_data/home_mock_data.dart';
-import '../mock_data/bus_mock_data.dart';
 import '../models/bus_data.dart';
 import '../models/home_data.dart';
+import '../models/hospital_data.dart';
+import '../services/api_service.dart';
 import '../services/favorite_bus_service.dart';
+import '../services/selected_location_service.dart';
 
 import '../widgets/app_top_bar.dart';
 import '../widgets/home_bus_card.dart';
@@ -31,25 +33,80 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const Color _backgroundColor = Color(0xFFF8FAFC);
 
-  BusSummary _homeBus = mockBus;
+  BusSummary _homeBus = const BusSummary(
+    stopName: '정류장 확인 중',
+    busNumber: '-',
+    route: '노선 정보를 불러오는 중입니다.',
+    arrivalTime: '도착 정보 확인 중',
+  );
+  HospitalSummary _homeHospital = const HospitalSummary(
+    hospitalName: '가까운 병원 확인 중',
+    distance: '-',
+  );
+  WeatherSummary _homeWeather = const WeatherSummary(
+    temperature: '-',
+    condition: '날씨 확인 중',
+  );
+  String _locationName = '현재 위치 확인 중';
 
   @override
   void initState() {
     super.initState();
 
-    _loadHomeBus();
+    _loadHomeData();
+  }
+
+  Future<void> _loadHomeData() async {
+    try {
+      final location = await SelectedLocationService.instance.getLocation(
+        requireRegion: true,
+      );
+      final grid = SelectedLocationService.instance.weatherGrid(location);
+      final results = await Future.wait([
+        ApiService.instance.getNearbyBusStops(location),
+        ApiService.instance.getNearbyHospitals(location),
+        ApiService.instance.getWeather(
+          DateTime.now(),
+          nx: grid.nx,
+          ny: grid.ny,
+        ),
+      ]);
+      final stops = results[0] as List<BusStopData>;
+      final hospitals = results[1] as List<HospitalData>;
+      final weather = results[2] as Map<String, dynamic>;
+      final buses = stops.isEmpty ? <BusData>[] : await ApiService.instance.getBusArrivals(stops.first);
+      final current = weather['current'] as Map<String, dynamic>? ?? {};
+      if (!mounted) return;
+      setState(() {
+        _locationName = location.displayName;
+        if (hospitals.isNotEmpty) {
+          final hospital = hospitals.first;
+          _homeHospital = HospitalSummary(
+            hospitalName: hospital.hospitalName,
+            distance: '${hospital.distanceKm.toStringAsFixed(1)}km',
+          );
+        }
+        _homeWeather = WeatherSummary(
+          temperature: '${(current['temperature_c'] as num?)?.round() ?? '-'}°C',
+          condition: current['condition']?.toString() ?? '정보 없음',
+        );
+      });
+      if (stops.isNotEmpty && buses.isNotEmpty) {
+        await _setHomeBus(stops.first, buses);
+      }
+    } catch (error) {
+      if (mounted) _showTemporaryMessage(context, error.toString());
+    }
   }
 
   // 저장된 즐겨찾기를 반영해 메인화면에 표시할 버스 선택
   Future<void> _loadHomeBus() async {
+    await _loadHomeData();
+  }
+
+  Future<void> _setHomeBus(BusStopData stop, List<BusData> candidates) async {
     final favoriteRouteIds =
         await FavoriteBusService.getFavoriteRouteIds();
-
-    final candidates = <BusData>[];
-
-    for (final buses in mockBusListByStop.values) {
-      candidates.addAll(buses);
-    }
 
     if (candidates.isEmpty) {
       return;
@@ -76,8 +133,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     final selectedBus = candidates.first;
-    final selectedStopName =
-        _findStopNameForBus(selectedBus);
 
     if (!mounted) {
       return;
@@ -85,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _homeBus = BusSummary(
-        stopName: selectedStopName,
+        stopName: '정류장 : ${stop.stopName}',
         busNumber: selectedBus.busNumber,
         route: _buildHomeRouteText(selectedBus),
         arrivalTime:
@@ -94,37 +149,21 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // 선택한 버스가 어느 정류장에서 출발하는지 찾기
-  String _findStopNameForBus(BusData bus) {
-    for (final entry in mockBusListByStop.entries) {
-      final containsBus = entry.value.any(
-        (item) => item.routeId == bus.routeId,
-      );
-
-      if (!containsBus) {
-        continue;
-      }
-
-      for (final stop in mockNearbyBusStops) {
-        if (stop.stopId == entry.key) {
-          return '정류장 : ${stop.stopName}';
-        }
-      }
-    }
-
-    return '정류장 정보 없음 (임시)';
-  }
-
   // 메인 카드 노선 문구 생성
   String _buildHomeRouteText(BusData bus) {
     final start = bus.startStop;
     final end = bus.endStop;
 
     if (start != null && end != null) {
+      if (start == end) {
+        return bus.viaStop == null
+            ? '$start 출발·도착 순환노선'
+            : '$start → ${bus.viaStop} → $end';
+      }
       return '$start → $end';
     }
 
-    return '노선 정보 없음 (임시)';
+    return '노선 정보 없음';
   }
 
   // 메인 카드 도착시간 문구 생성
@@ -133,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return '도착 정보 없음';
     }
 
-    return '${bus.arrivalMinutes}분 후 도착 (임시)';
+    return '${bus.arrivalMinutes}분 후 도착';
   }
 
   // 임시 안내 메시지
@@ -172,11 +211,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _goToSettingsScreen(BuildContext context) {
-    Navigator.push(
+  Future<void> _goToSettingsScreen(BuildContext context) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
+    if (mounted) await _loadHomeData();
   }
 
   void _goToNewsScreen(BuildContext context) {
@@ -266,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             Expanded(
               child: Text(
-                '현재 위치 : ${mockLocation.locationName}',
+                '현재 위치 : $_locationName',
                 style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w600,
@@ -303,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // 병원 카드
           // SOS 버튼은 카드 내부에서 제거됨
           HomeHospitalCard(
-            hospital: mockHospital,
+            hospital: _homeHospital,
             onTap: () {
               _goToHospitalScreen(context);
             },
@@ -313,7 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // 날씨 카드
           HomeWeatherCard(
-            weather: mockWeather,
+            weather: _homeWeather,
             onTap: () => _goToWeatherScreen(context),
           ),
 

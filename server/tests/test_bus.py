@@ -8,6 +8,7 @@ from app import app
 from services.bus_service import (
     BusServiceError,
     _get_response_items,
+    _turnaround_stop_name,
     get_bus_arrivals,
     get_bus_route,
     get_nearby_stops,
@@ -202,6 +203,16 @@ class BusRouteTest(unittest.TestCase):
 
 
 class BusServiceTest(unittest.TestCase):
+    def test_turnaround_stop_uses_farthest_stop_on_circular_route(self):
+        stops = [
+            {"name": "터미널", "latitude": 36.0, "longitude": 128.0},
+            {"name": "중간", "latitude": 36.1, "longitude": 128.1},
+            {"name": "회차지", "latitude": 36.3, "longitude": 128.3},
+            {"name": "터미널", "latitude": 36.0, "longitude": 128.0},
+        ]
+
+        self.assertEqual(_turnaround_stop_name(stops, "터미널"), "회차지")
+
     @patch("services.bus_service.data_go_API_KEY", "SECRET-BUS-KEY")
     @patch("services.bus_service.requests.get")
     def test_bus_request_error_hides_api_key(self, mock_get):
@@ -232,6 +243,27 @@ class BusServiceTest(unittest.TestCase):
 
         with self.assertRaises(BusServiceError):
             _get_response_items(payload)
+
+    @patch("services.bus_service.data_go_API_KEY", "test-key")
+    @patch("services.bus_service.requests.get")
+    def test_bus_request_retries_temporary_service_payload(self, mock_get):
+        temporary_error = Mock()
+        temporary_error.raise_for_status.return_value = None
+        temporary_error.json.return_value = {"OpenAPI_ServiceResponse": {}}
+        success = Mock()
+        success.raise_for_status.return_value = None
+        success.json.return_value = {
+            "response": {
+                "header": {"resultCode": "00"},
+                "body": {"items": "", "totalCount": 0},
+            }
+        }
+        mock_get.side_effect = [temporary_error, success]
+
+        stops = get_nearby_stops(36.3, 127.3)
+
+        self.assertEqual(stops, [])
+        self.assertEqual(mock_get.call_count, 2)
 
 
     @patch("services.bus_service.data_go_API_KEY", "test-key")
@@ -437,6 +469,49 @@ class BusServiceTest(unittest.TestCase):
         self.assertEqual(routes[0]["route_type"], "농어촌(일반)버스")
         self.assertEqual(mock_get.call_args.kwargs["params"]["nodeid"], "TSB371000038")
         self.assertNotIn("nodeId", mock_get.call_args.kwargs["params"])
+
+    @patch("services.bus_service.data_go_API_KEY", "test-key")
+    @patch("services.bus_service.requests.get")
+    def test_get_stop_routes_includes_neighboring_city_provider(self, mock_get):
+        def response(route_id, bus_number, start, end):
+            result = Mock()
+            result.raise_for_status.return_value = None
+            result.json.return_value = {
+                "response": {
+                    "header": {"resultCode": "00"},
+                    "body": {
+                        "items": {
+                            "item": {
+                                "routeid": route_id,
+                                "routeno": bus_number,
+                                "routetp": "일반버스",
+                                "startnodenm": start,
+                                "endnodenm": end,
+                            }
+                        },
+                        "totalCount": 1,
+                    },
+                }
+            }
+            return result
+
+        mock_get.side_effect = [
+            response("TSB371000049", 29, "봉화공용터미널", "영주여객차고지"),
+            response("TSB356000197", 33, "삼양홈마트", "영주여객차고지"),
+        ]
+
+        routes = get_stop_routes("37410", "TSB371000047")
+
+        self.assertEqual(
+            [route["route_id"] for route in routes],
+            ["TSB371000049", "TSB356000197"],
+        )
+        self.assertEqual(routes[0]["city_code"], "37410")
+        self.assertEqual(routes[1]["city_code"], "37060")
+        self.assertEqual(
+            [call.kwargs["params"]["cityCode"] for call in mock_get.call_args_list],
+            ["37410", "37060"],
+        )
 
 
 if __name__ == "__main__":

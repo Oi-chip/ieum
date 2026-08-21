@@ -6,6 +6,7 @@ import '../services/call_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/sos_menu.dart';
 import '../widgets/voice_button.dart';
+import 'settings_screen.dart';
 
 class HospitalDetailScreen extends StatelessWidget {
   final HospitalData hospital;
@@ -91,9 +92,9 @@ class HospitalDetailScreen extends StatelessWidget {
                 showSosMenu(context);
               },
               onSettingsTap: () {
-                _showTemporaryMessage(
+                Navigator.push(
                   context,
-                  '설정 화면은 B팀과 연계 예정입니다. (임시)',
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 );
               },
             ),
@@ -162,15 +163,19 @@ class HospitalDetailScreen extends StatelessWidget {
               Icon(
                 Icons.circle,
                 size: 18,
-                color: hospital.isOpen
-                    ? Colors.green
-                    : Colors.red,
+                color: hospital.isOpen == null
+                    ? Colors.orange
+                    : hospital.isOpen!
+                        ? Colors.green
+                        : Colors.red,
               ),
               const SizedBox(width: 6),
               Text(
-                hospital.isOpen
-                    ? '진료 중'
-                    : '진료 종료',
+                hospital.isOpen == null
+                    ? '전화 확인 필요'
+                    : hospital.isOpen!
+                        ? '진료 중'
+                        : '진료 종료',
                 style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.bold,
@@ -222,7 +227,7 @@ class HospitalDetailScreen extends StatelessWidget {
             icon: Icons.directions_walk,
             title: '거리',
             value:
-                '${hospital.distanceKm.toStringAsFixed(1)}km (임시)',
+                '${hospital.distanceKm.toStringAsFixed(1)}km',
           ),
         ],
       ),

@@ -1,18 +1,23 @@
 
 import 'package:flutter/material.dart';
 
-import '../mock_data/hospital_mock_data.dart';
 import '../models/hospital_data.dart';
+import '../models/gps_location.dart';
+import '../services/api_service.dart';
 import '../services/call_service.dart';
+import '../services/selected_location_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/sos_menu.dart';
 import '../widgets/voice_button.dart';
 
 import 'hospital_detail_screen.dart';
+import 'settings_screen.dart';
 
 class HospitalScreen extends StatefulWidget {
-  const HospitalScreen({super.key});
+  final bool emergencyOnly;
+
+  const HospitalScreen({super.key, this.emergencyOnly = false});
 
   @override
   State<HospitalScreen> createState() => _HospitalScreenState();
@@ -21,7 +26,15 @@ class HospitalScreen extends StatefulWidget {
 class _HospitalScreenState extends State<HospitalScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-  List<HospitalData> _displayedHospitals = List.from(mockHospitalList);
+  List<HospitalData> _displayedHospitals = [];
+  GpsLocation? _location;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHospitals();
+  }
 
   @override
   void dispose() {
@@ -29,7 +42,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
     super.dispose();
   }
 
-  // 아직 구현되지 않은 기능 안내
+  // 조회나 입력 오류를 화면 하단에 안내합니다.
   void _showTemporaryMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -39,23 +52,46 @@ class _HospitalScreenState extends State<HospitalScreen> {
   }
 
   // 병원 검색
+  Future<void> _loadHospitals({String? keyword}) async {
+    setState(() => _isLoading = true);
+    try {
+      final location = _location ??
+          await SelectedLocationService.instance.getLocation(
+            requireRegion: true,
+          );
+      var hospitals = await ApiService.instance.getNearbyHospitals(
+        location,
+        keyword: keyword,
+      );
+      if (widget.emergencyOnly) {
+        hospitals = hospitals.where((hospital) => hospital.hasEmergencyRoom).toList();
+      }
+      if (!mounted) return;
+      setState(() {
+        _location = location;
+        _displayedHospitals = hospitals;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showTemporaryMessage(error.toString());
+    }
+  }
+
   void _searchHospital() {
     FocusScope.of(context).unfocus();
 
     final keyword = _searchController.text.trim();
 
-    setState(() {
-      _displayedHospitals = searchMockHospitals(keyword);
-    });
+    _loadHospitals(keyword: keyword.isEmpty ? null : keyword);
   }
 
   // 검색 초기화
   void _clearSearch() {
     _searchController.clear();
 
-    setState(() {
-      _displayedHospitals = List.from(mockHospitalList);
-    });
+    _loadHospitals();
   }
 
   // 병원 화면 음성 명령 처리
@@ -143,10 +179,15 @@ class _HospitalScreenState extends State<HospitalScreen> {
               onSosTap: () {
                 showSosMenu(context);
               },
-              onSettingsTap: () {
-                _showTemporaryMessage(
-                  '설정 화면은 B팀과 연계 예정입니다. (임시)',
+              onSettingsTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 );
+                if (mounted) {
+                  _location = null;
+                  await _loadHospitals();
+                }
               },
             ),
 
@@ -187,17 +228,17 @@ class _HospitalScreenState extends State<HospitalScreen> {
 
   // 현재 위치 표시
   Widget _buildLocationSection() {
-    return const Row(
+    return Row(
       children: [
         Icon(
           Icons.location_on,
           size: 26,
         ),
-        SizedBox(width: 6),
+        const SizedBox(width: 6),
         Expanded(
           child: Text(
-            '현재 위치 : 봉화읍 (임시)',
-            style: TextStyle(
+            '조회 지역 : ${_location?.displayName ?? '확인 중'}',
+            style: const TextStyle(
               fontSize: 19,
               fontWeight: FontWeight.w600,
             ),
@@ -279,6 +320,9 @@ class _HospitalScreenState extends State<HospitalScreen> {
 
   // 병원 목록
   Widget _buildHospitalList() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_displayedHospitals.isEmpty) {
       return const SizedBox(
         width: double.infinity,

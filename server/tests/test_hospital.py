@@ -270,6 +270,28 @@ class HospitalServiceTest(unittest.TestCase):
 
     @patch("services.hospital_service.data_go_API_KEY", "test-key")
     @patch("services.hospital_service.requests.get")
+    def test_nearby_hospitals_excludes_different_region_address(self, mock_get):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.content = SAMPLE_XML.replace(
+            "경상북도 봉화군 먼길 2".encode("utf-8"),
+            "경상북도 안동시 먼길 2".encode("utf-8"),
+        )
+        mock_get.return_value = response
+
+        hospitals = get_nearby_hospitals(
+            36.893633,
+            128.7312033,
+            "경상북도",
+            "봉화군",
+            radius_m=5000,
+            now=MONDAY_10_AM,
+        )
+
+        self.assertEqual([hospital["id"] for hospital in hospitals], ["NEAR-HOSPITAL"])
+
+    @patch("services.hospital_service.data_go_API_KEY", "test-key")
+    @patch("services.hospital_service.requests.get")
     def test_missing_today_hours_returns_unknown(self, mock_get):
         response = Mock()
         response.raise_for_status.return_value = None

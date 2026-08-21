@@ -33,6 +33,12 @@ EARTH_RADIUS_METERS = 6_371_000
 ROUTE_STOPS_PAGE_SIZE = 100
 MAX_ROUTE_STOPS_PAGES = 10
 
+# TAGO는 시 경계를 넘는 노선을 운행 주체의 도시코드로만 반환합니다.
+# 봉화 정류장 ID를 봉화군 코드로만 조회하면 영주시 33/533번 노선이 누락됩니다.
+ROUTE_PROVIDER_CITY_CODES = {
+    "37410": ("37060",),
+}
+
 
 class BusServiceError(Exception):
     """버스 데이터를 정상적으로 가져오지 못했을 때 발생합니다."""
@@ -126,18 +132,32 @@ def _request_bus_api(url, params):
         **params,
     }
 
-    try:
-        response = requests.get(
-            url,
-            params=request_params,
-            timeout=REQUEST_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-        return response.json()
-    except (requests.RequestException, ValueError):
-        # requests 오류에는 API 키가 포함된 전체 요청 주소가 들어갈 수 있습니다.
-        # 원본 오류를 연결하지 않아 전체 traceback에서도 키가 노출되지 않게 합니다.
-        raise BusServiceError("버스 API 요청에 실패했습니다.") from None
+    for attempt in range(2):
+        response = None
+        try:
+            response = requests.get(
+                url,
+                params=request_params,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict) or "response" not in payload:
+                if attempt == 0:
+                    continue
+                raise BusServiceError("버스 API가 일시적인 오류 응답을 반환했습니다.")
+            return payload
+        except BusServiceError:
+            raise
+        except (requests.RequestException, ValueError):
+            if attempt == 0 and (
+                response is None
+                or response.status_code >= 500
+            ):
+                continue
+            # requests 오류에는 API 키가 포함된 전체 요청 주소가 들어갈 수 있습니다.
+            # 원본 오류를 연결하지 않아 전체 traceback에서도 키가 노출되지 않게 합니다.
+            raise BusServiceError("버스 API 요청에 실패했습니다.") from None
 
 
 def get_nearby_stops(latitude, longitude):
@@ -234,6 +254,34 @@ def _optional_float(value):
         return None
 
 
+def _provider_city_codes(city_code):
+    return (city_code, *ROUTE_PROVIDER_CITY_CODES.get(city_code, ()))
+
+
+def _turnaround_stop_name(stops, origin_name):
+    if not stops:
+        return None
+    origin = stops[0]
+    if origin["latitude"] is None or origin["longitude"] is None:
+        return None
+    candidates = [
+        stop for stop in stops
+        if stop["latitude"] is not None and stop["longitude"] is not None
+    ]
+    if not candidates:
+        return None
+    turnaround = max(
+        candidates,
+        key=lambda stop: _distance_in_meters(
+            origin["latitude"],
+            origin["longitude"],
+            stop["latitude"],
+            stop["longitude"],
+        ),
+    )
+    return turnaround["name"] if turnaround["name"] != origin_name else None
+
+
 def get_bus_route(city_code, route_id):
     """노선 기본정보와 노선이 지나가는 정류장 전체를 반환합니다."""
     route_payload = _request_bus_api(BUS_ROUTE_INFO_API_URL, {
@@ -293,30 +341,53 @@ def get_bus_route(city_code, route_id):
         stops.append(stop)
 
     route["stops"] = sorted(stops, key=lambda stop: stop["order"])
+    route["via_stop"] = None
+    if (
+        route["start_stop"]
+        and route["start_stop"] == route["end_stop"]
+        and route["stops"]
+    ):
+        route["via_stop"] = _turnaround_stop_name(
+            route["stops"],
+            route["start_stop"],
+        )
     return route
 
 
 def get_stop_routes(city_code, stop_id):
     """선택한 정류장을 지나는 버스 노선 목록을 반환합니다."""
-    route_items = _get_all_response_items(BUS_STOP_ROUTES_API_URL, {
-        "cityCode": city_code,
-        # 이 오퍼레이션은 다른 TAGO API와 달리 소문자 nodeid를 사용합니다.
-        "nodeid": stop_id,
-    })
+    routes_by_id = {}
+    successful_request = False
+    last_error = None
 
-    routes = []
-    for item in route_items:
+    for provider_city_code in _provider_city_codes(city_code):
         try:
-            route = {
-                "route_id": str(item["routeid"]),
-                "bus_number": str(item["routeno"]),
-                "route_type": item.get("routetp"),
-                "start_stop": item.get("startnodenm"),
-                "end_stop": item.get("endnodenm"),
-            }
-        except (KeyError, TypeError):
+            route_items = _get_all_response_items(BUS_STOP_ROUTES_API_URL, {
+                "cityCode": provider_city_code,
+                # 이 오퍼레이션은 다른 TAGO API와 달리 소문자 nodeid를 사용합니다.
+                "nodeid": stop_id,
+            })
+            successful_request = True
+        except BusServiceError as error:
+            last_error = error
             continue
 
-        routes.append(route)
+        for item in route_items:
+            try:
+                route = {
+                    "route_id": str(item["routeid"]),
+                    "city_code": provider_city_code,
+                    "bus_number": str(item["routeno"]),
+                    "route_type": item.get("routetp"),
+                    "start_stop": item.get("startnodenm"),
+                    "end_stop": item.get("endnodenm"),
+                }
+            except (KeyError, TypeError):
+                continue
 
-    return routes
+            routes_by_id.setdefault(route["route_id"], route)
+
+    if not successful_request and last_error is not None:
+        raise last_error
+
+    return list(routes_by_id.values())
