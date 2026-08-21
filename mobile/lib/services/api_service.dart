@@ -17,9 +17,38 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  ApiService._();
+  static const Duration _defaultRequestTimeout = Duration(seconds: 25);
+  static const Duration _busAggregateRequestTimeout = Duration(seconds: 45);
+
+  ApiService._({
+    http.Client? client,
+    String? baseUrl,
+    Duration defaultRequestTimeout = _defaultRequestTimeout,
+    Duration busAggregateRequestTimeout = _busAggregateRequestTimeout,
+  }) : _client = client ?? http.Client(),
+       _baseUrlOverride = baseUrl,
+       _defaultTimeout = defaultRequestTimeout,
+       _busAggregateTimeout = busAggregateRequestTimeout;
 
   static final ApiService instance = ApiService._();
+  final http.Client _client;
+  final String? _baseUrlOverride;
+  final Duration _defaultTimeout;
+  final Duration _busAggregateTimeout;
+
+  factory ApiService.withClient(
+    http.Client client, {
+    required String baseUrl,
+    Duration defaultRequestTimeout = _defaultRequestTimeout,
+    Duration busAggregateRequestTimeout = _busAggregateRequestTimeout,
+  }) {
+    return ApiService._(
+      client: client,
+      baseUrl: baseUrl,
+      defaultRequestTimeout: defaultRequestTimeout,
+      busAggregateRequestTimeout: busAggregateRequestTimeout,
+    );
+  }
 
   static String get _baseUrl {
     const configured = String.fromEnvironment('API_BASE_URL');
@@ -29,15 +58,20 @@ class ApiService {
         : 'http://localhost:5000';
   }
 
+  String get _resolvedBaseUrl => _baseUrlOverride ?? _baseUrl;
+
   Future<Map<String, dynamic>> _get(
     String path, [
     Map<String, String>? parameters,
+    Duration? timeout,
   ]) async {
     final uri = Uri.parse(
-      '$_baseUrl$path',
+      '$_resolvedBaseUrl$path',
     ).replace(queryParameters: parameters);
     try {
-      final response = await http.get(uri).timeout(const Duration(seconds: 25));
+      final response = await _client
+          .get(uri)
+          .timeout(timeout ?? _defaultTimeout);
       final body = jsonDecode(utf8.decode(response.bodyBytes));
       if (body is! Map<String, dynamic>) {
         throw const ApiException('서버가 올바르게 응답하지 않았습니다.');
@@ -58,17 +92,55 @@ class ApiService {
     }
   }
 
+  Map<String, dynamic> _responseData(Map<String, dynamic> body) {
+    final data = body['data'];
+    if (data is! Map) {
+      throw const ApiException('서버가 올바르게 응답하지 않았습니다.');
+    }
+    return Map<String, dynamic>.from(data);
+  }
+
   Future<List<BusStopData>> getNearbyBusStops(GpsLocation location) async {
     final body = await _get(
       '/api/bus/nearby',
       location.toQueryParameters(includeRegion: false),
     );
-    final items =
-        (body['data'] as Map<String, dynamic>)['stops'] as List? ?? [];
+    final items = _responseData(body)['stops'] as List? ?? [];
     return items
         .whereType<Map>()
         .map((item) => BusStopData.fromJson(Map<String, dynamic>.from(item)))
         .toList();
+  }
+
+  Future<BusOverviewData> getBusOverview(GpsLocation location) async {
+    final body = await _get(
+      '/api/bus/overview',
+      location.toQueryParameters(includeRegion: false),
+      _busAggregateTimeout,
+    );
+    return BusOverviewData.fromJson(_responseData(body));
+  }
+
+  Future<BusSearchData> searchBusRoutes(
+    GpsLocation location,
+    String destination, {
+    BusStopData? originStop,
+  }) async {
+    final parameters = location.toQueryParameters(includeRegion: false)
+      ..['destination'] = destination.trim();
+    if (originStop != null) {
+      parameters.addAll({
+        'origin_stop_id': originStop.stopId,
+        'origin_city_code': originStop.cityCode,
+      });
+    }
+
+    final body = await _get(
+      '/api/bus/search',
+      parameters,
+      _busAggregateTimeout,
+    );
+    return BusSearchData.fromJson(_responseData(body));
   }
 
   Future<List<BusData>> getBusArrivals(BusStopData stop) async {
@@ -76,12 +148,13 @@ class ApiService {
       'city_code': stop.cityCode,
       'stop_id': stop.stopId,
     });
-    final items =
-        (body['data'] as Map<String, dynamic>)['arrivals'] as List? ?? [];
-    return items
-        .whereType<Map>()
-        .map((item) => BusData.fromJson(Map<String, dynamic>.from(item)))
-        .toList();
+    final data = _responseData(body);
+    final items = data['arrivals'] as List? ?? [];
+    return items.whereType<Map>().map((item) {
+      final json = Map<String, dynamic>.from(item);
+      json.putIfAbsent('city_code', () => data['city_code'] ?? stop.cityCode);
+      return BusData.fromJson(json);
+    }).toList();
   }
 
   Future<List<BusData>> getStopRoutes(BusStopData stop) async {
@@ -89,8 +162,7 @@ class ApiService {
       'city_code': stop.cityCode,
       'stop_id': stop.stopId,
     });
-    final items =
-        (body['data'] as Map<String, dynamic>)['routes'] as List? ?? [];
+    final items = _responseData(body)['routes'] as List? ?? [];
     return items
         .whereType<Map>()
         .map((item) => BusData.fromJson(Map<String, dynamic>.from(item)))
@@ -102,7 +174,7 @@ class ApiService {
       'city_code': bus.cityCode ?? stop.cityCode,
       'route_id': bus.routeId,
     });
-    final route = (body['data'] as Map<String, dynamic>)['route'] as Map;
+    final route = _responseData(body)['route'] as Map;
     return BusDetailData.fromJson(Map<String, dynamic>.from(route), stop, bus);
   }
 
@@ -134,11 +206,13 @@ class ApiService {
         '${date.month.toString().padLeft(2, '0')}-'
         '${date.day.toString().padLeft(2, '0')}';
     final uri = Uri.parse(
-      '$_baseUrl/api/weather',
+      '$_resolvedBaseUrl/api/weather',
     ).replace(queryParameters: {'nx': '$nx', 'ny': '$ny', 'date': dateText});
 
     try {
-      final response = await http.get(uri).timeout(const Duration(seconds: 15));
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 15));
       final body = jsonDecode(utf8.decode(response.bodyBytes));
       if (response.statusCode != 200 || body is! Map<String, dynamic>) {
         throw const ApiException('날씨 서버가 올바르게 응답하지 않았습니다.');

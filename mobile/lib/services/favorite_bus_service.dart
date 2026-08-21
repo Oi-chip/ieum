@@ -1,63 +1,101 @@
+import 'dart:async';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FavoriteBusService {
   static const String _favoriteBusKey = 'favorite_bus_route_ids';
+  static Future<void> _operationBarrier = Future<void>.value();
 
-  // 저장된 즐겨찾기 버스 routeId 목록 불러오기
-  static Future<Set<String>> getFavoriteRouteIds() async {
-    final preferences = await SharedPreferences.getInstance();
+  static Future<T> _serialize<T>(Future<T> Function() operation) {
+    final previousOperation = _operationBarrier;
+    final release = Completer<void>();
+    _operationBarrier = release.future;
 
-    final savedRouteIds =
-        preferences.getStringList(_favoriteBusKey) ?? [];
-
-    return savedRouteIds.toSet();
+    return () async {
+      await previousOperation;
+      try {
+        return await operation();
+      } finally {
+        release.complete();
+      }
+    }();
   }
 
-  // 특정 버스가 즐겨찾기인지 확인
-  static Future<bool> isFavorite(String routeId) async {
-    final favoriteRouteIds = await getFavoriteRouteIds();
-
-    return favoriteRouteIds.contains(routeId);
+  static Set<String> _read(SharedPreferences preferences) {
+    return (preferences.getStringList(_favoriteBusKey) ?? []).toSet();
   }
 
-  // 즐겨찾기 추가
-  static Future<void> addFavorite(String routeId) async {
-    final preferences = await SharedPreferences.getInstance();
-
-    final favoriteRouteIds = await getFavoriteRouteIds();
-
-    favoriteRouteIds.add(routeId);
-
+  static Future<void> _save(
+    SharedPreferences preferences,
+    Set<String> favoriteRouteIds,
+  ) async {
     await preferences.setStringList(
       _favoriteBusKey,
-      favoriteRouteIds.toList(),
+      favoriteRouteIds.toList()..sort(),
     );
   }
 
-  // 즐겨찾기 삭제
-  static Future<void> removeFavorite(String routeId) async {
-    final preferences = await SharedPreferences.getInstance();
-
-    final favoriteRouteIds = await getFavoriteRouteIds();
-
-    favoriteRouteIds.remove(routeId);
-
-    await preferences.setStringList(
-      _favoriteBusKey,
-      favoriteRouteIds.toList(),
-    );
+  // Legacy route IDs remain readable while new values use provider:routeId.
+  static Future<Set<String>> getFavoriteRouteIds() {
+    return _serialize(() async {
+      final preferences = await SharedPreferences.getInstance();
+      return _read(preferences);
+    });
   }
 
-  // 즐겨찾기 상태 반전
-  static Future<bool> toggleFavorite(String routeId) async {
+  static bool containsRoute(
+    Set<String> favoriteRouteIds, {
+    required String routeKey,
+    required String routeId,
+  }) {
+    return favoriteRouteIds.contains(routeKey) ||
+        favoriteRouteIds.contains(routeId);
+  }
+
+  static Future<bool> isFavorite(
+    String routeKey, {
+    String? legacyRouteId,
+  }) async {
     final favoriteRouteIds = await getFavoriteRouteIds();
+    return favoriteRouteIds.contains(routeKey) ||
+        (legacyRouteId != null && favoriteRouteIds.contains(legacyRouteId));
+  }
 
-    if (favoriteRouteIds.contains(routeId)) {
-      await removeFavorite(routeId);
-      return false;
-    }
+  static Future<void> addFavorite(String routeId) {
+    return _serialize(() async {
+      final preferences = await SharedPreferences.getInstance();
+      final favoriteRouteIds = _read(preferences)..add(routeId);
+      await _save(preferences, favoriteRouteIds);
+    });
+  }
 
-    await addFavorite(routeId);
-    return true;
+  static Future<void> removeFavorite(String routeId) {
+    return _serialize(() async {
+      final preferences = await SharedPreferences.getInstance();
+      final favoriteRouteIds = _read(preferences)..remove(routeId);
+      await _save(preferences, favoriteRouteIds);
+    });
+  }
+
+  static Future<bool> toggleFavorite(String routeKey, {String? legacyRouteId}) {
+    return _serialize(() async {
+      final preferences = await SharedPreferences.getInstance();
+      final favoriteRouteIds = _read(preferences);
+      final wasFavorite =
+          favoriteRouteIds.contains(routeKey) ||
+          (legacyRouteId != null && favoriteRouteIds.contains(legacyRouteId));
+
+      favoriteRouteIds.remove(routeKey);
+      if (legacyRouteId != null) {
+        favoriteRouteIds.remove(legacyRouteId);
+      }
+
+      if (!wasFavorite) {
+        favoriteRouteIds.add(routeKey);
+      }
+
+      await _save(preferences, favoriteRouteIds);
+      return !wasFavorite;
+    });
   }
 }

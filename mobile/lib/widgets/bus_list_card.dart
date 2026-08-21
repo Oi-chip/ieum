@@ -67,6 +67,14 @@ class BusListCard extends StatelessWidget {
                 ),
               ],
 
+              if (bus.apiBusNumber != bus.busNumber) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '공공데이터 등록 번호 ${bus.apiBusNumber}',
+                  style: const TextStyle(fontSize: 15, color: Colors.black54),
+                ),
+              ],
+
               if (showRouteIdentifier) ...[
                 const SizedBox(height: 2),
                 Text(
@@ -120,11 +128,30 @@ class BusListCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '검색된 목적지 : ${bus.matchedStop}',
+                        '도착 정류장 : ${bus.matchedStop}',
                         style: const TextStyle(fontSize: 17),
                       ),
                     ),
                   ],
+                ),
+              ],
+
+              if (bus.stopsBetween != null || bus.vehicleType != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  [
+                    if (bus.stopsBetween != null) '${bus.stopsBetween}개 정류장 이동',
+                    if (bus.vehicleType != null) bus.vehicleType!,
+                  ].join(' · '),
+                  style: const TextStyle(fontSize: 16, color: Colors.black54),
+                ),
+              ],
+
+              if (!bus.dataComplete) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  '일부 노선 정보는 제공되지 않습니다.',
+                  style: TextStyle(fontSize: 15, color: Colors.deepOrange),
                 ),
               ],
 
