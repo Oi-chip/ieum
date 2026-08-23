@@ -142,40 +142,65 @@ class _WeatherScreenState extends State<WeatherScreen> {
                       onRetry: _loadWeather,
                     )
                   : SafeArea(
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _TopStatusRow(
-                                    data: data,
-                                  ),
-
-                                  const SizedBox(height: 16),
-
-                                  _MainWeatherCard(
-                                    data: data,
-                                  ),
-
-                                  const SizedBox(height: 16),
-
-                                  _DetailGrid(
-                                    data: data,
-                                  ),
-
-                                  const SizedBox(height: 24),
-
-                                  _SpeakButton(
-                                    onPressed: () => _speakWeather(data),
-                                  ),
-                                ],
-                              ),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(
+                          16,
+                          8,
+                          16,
+                          16,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _TopStatusRow(
+                              data: data,
                             ),
-                          ),
-                        ],
+
+                            const SizedBox(height: 20),
+
+                            _DateNavigator(
+                              date: _selectedDate,
+                              onPrevious: _canGoPrevious
+                                  ? () => _changeDate(-1)
+                                  : null,
+                              onNext: _canGoNext
+                                  ? () => _changeDate(1)
+                                  : null,
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            const _SectionLabel(
+                              '시간별 예보',
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            _HourlyForecastRow(
+                              hours: data.hourly,
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            const _SectionLabel(
+                              '상세 정보',
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            _DetailGrid(
+                              data: data,
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            _SpeakButton(
+                              onPressed: () {
+                                _speakWeather(data);
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
     );
