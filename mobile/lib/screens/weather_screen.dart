@@ -34,19 +34,48 @@ class _WeatherScreenState extends State<WeatherScreen> {
     if (_selectedDate.isBefore(_today)) {
       _selectedDate = _today;
     }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
+
     try {
-      final json = await ApiService.instance.getWeather(_selectedDate);
-      if (!mounted) return;
-      setState(() => _weather = _WeatherData.fromJson(json));
+      final json = await ApiService.instance.getWeather(
+        _selectedDate,
+      );
+
+      final weather = _WeatherData.fromJson(json);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _weather = weather;
+      });
     } on ApiException catch (error) {
-      if (!mounted) return;
-      setState(() => _errorMessage = error.message);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _errorMessage = error.message;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _errorMessage = '날씨 정보를 불러오는 중 오류가 발생했습니다.';
+      });
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -99,38 +128,56 @@ class _WeatherScreenState extends State<WeatherScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
           : _errorMessage != null
-          ? _WeatherError(message: _errorMessage!, onRetry: _loadWeather)
-          : SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 하늘상태 / 미세먼지 좌우 2분할 (와이어프레임 상단 두 원)
-                    _TopStatusRow(data: data!),
-                    const SizedBox(height: 20),
-                    _DateNavigator(
-                      date: _selectedDate,
-                      onPrevious: _canGoPrevious ? () => _changeDate(-1) : null,
-                      onNext: _canGoNext ? () => _changeDate(1) : null,
+              ? _WeatherError(
+                  message: _errorMessage!,
+                  onRetry: _loadWeather,
+                )
+              : data == null
+                  ? _WeatherError(
+                      message: '날씨 정보를 불러오지 못했습니다.',
+                      onRetry: _loadWeather,
+                    )
+                  : SafeArea(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _TopStatusRow(
+                                    data: data,
+                                  ),
+
+                                  const SizedBox(height: 16),
+
+                                  _MainWeatherCard(
+                                    data: data,
+                                  ),
+
+                                  const SizedBox(height: 16),
+
+                                  _DetailGrid(
+                                    data: data,
+                                  ),
+
+                                  const SizedBox(height: 24),
+
+                                  _SpeakButton(
+                                    onPressed: () => _speakWeather(data),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    const _SectionLabel('시간별 예보'),
-                    const SizedBox(height: 8),
-                    _HourlyForecastRow(hours: data.hourly),
-                    const SizedBox(height: 20),
-                    const _SectionLabel('상세 정보'),
-                    const SizedBox(height: 8),
-                    // 기온 -> 강수량 -> 눈 -> 바람 순서 (와이어프레임 순서 그대로)
-                    _DetailGrid(data: data),
-                    const SizedBox(height: 24),
-                    _SpeakButton(onPressed: () => _speakWeather(data)),
-                  ],
-                ),
-              ),
-            ),
     );
   }
 }
@@ -612,12 +659,26 @@ class _WeatherData {
       '강수량은 $precipitationPercent퍼센트입니다.';
 
   factory _WeatherData.fromJson(Map<String, dynamic> json) {
-    final current = json['current'] as Map<String, dynamic>? ?? const {};
+    final currentRaw = json['current'];
+
+    final Map<String, dynamic> current =
+        currentRaw is Map<String, dynamic>
+            ? currentRaw
+            : <String, dynamic>{};
+
+    final hourlyRaw = json['hourly'];
+
+    final List<dynamic> hourlyJson =
+        hourlyRaw is List
+            ? hourlyRaw
+            : <dynamic>[];
+
     final currentAt = DateTime.tryParse(
       current['forecast_at']?.toString() ?? '',
     );
-    final hourlyJson = json['hourly'] as List<dynamic>? ?? const [];
-    final windSpeed = (current['wind_speed_ms'] as num?)?.toDouble();
+
+    final windSpeed =
+        (current['wind_speed_ms'] as num?)?.toDouble();
     return _WeatherData(
       conditionLabel: current['condition']?.toString() ?? '알 수 없음',
       temperatureC: ((current['temperature_c'] as num?) ?? 0).round(),
