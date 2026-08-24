@@ -13,6 +13,16 @@ class BusStopData {
     this.stopNumber,
     required this.distanceM,
   });
+
+  factory BusStopData.fromJson(Map<String, dynamic> json) {
+    return BusStopData(
+      stopId: json['id']?.toString() ?? '',
+      cityCode: json['city_code']?.toString() ?? '',
+      stopName: json['name']?.toString() ?? '정류장 이름 없음',
+      stopNumber: json['number']?.toString(),
+      distanceM: _toInt(json['distance_m']) ?? 0,
+    );
+  }
 }
 
 
@@ -50,6 +60,19 @@ class BusData {
     this.arrivalMinutes,
     this.isFavorite = false,
   });
+
+  factory BusData.fromJson(Map<String, dynamic> json) {
+    return BusData(
+      routeId: json['route_id']?.toString() ?? '',
+      busNumber: json['bus_number']?.toString() ?? '버스 번호 없음',
+      routeType: json['route_type']?.toString(),
+      startStop: json['start_stop']?.toString(),
+      endStop: json['end_stop']?.toString(),
+      matchedStop: json['matched_stop']?.toString(),
+      remainingStops: _toInt(json['remaining_stops']),
+      arrivalMinutes: _toInt(json['arrival_minutes']),
+    );
+  }
 
   // 즐겨찾기 상태만 변경할 때 사용
   BusData copyWith({
@@ -110,4 +133,20 @@ class BusDetailData {
     this.sundayIntervalMinutes,
     required this.stops,
   });
+}
+
+int? _toInt(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is int) {
+    return value;
+  }
+
+  if (value is num) {
+    return value.toInt();
+  }
+
+  return int.tryParse(value.toString());
 }

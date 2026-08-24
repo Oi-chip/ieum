@@ -9,6 +9,7 @@ import '../widgets/voice_button.dart';
 import 'bus_detail_screen.dart';
 
 import '../widgets/sos_menu.dart';
+import '../services/api_service.dart';
 
 class BusScreen extends StatefulWidget {
   const BusScreen({super.key});
@@ -20,22 +21,115 @@ class BusScreen extends StatefulWidget {
 class _BusScreenState extends State<BusScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-  List<BusData> _displayedBusList = List.from(mockBusList);
+  // GPS 연결 전 사용하는 봉화 테스트 좌표
+  static const double _testLatitude = 36.8931;
+  static const double _testLongitude = 128.7325;
 
-  late BusStopData _selectedStop;
+  List<BusData> _displayedBusList = [];
+  List<BusStopData> _nearbyStops = [];
+
+  BusStopData? _selectedStop;
 
   Set<String> _favoriteRouteIds = {};
 
   bool _isSearching = false;
   bool _isRefreshing = false;
   bool _wasStopAutomaticallyChanged = false;
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _selectedStop = mockNearbyBusStop;
+
     _loadFavorites();
+    _loadBusData();
   }
+
+  // 실제 서버에서 가까운 정류장과 버스 도착정보 불러오기
+Future<void> _loadBusData() async {
+  if (mounted) {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+  }
+
+  try {
+    final nearbyData =
+        await ApiService.instance.getNearbyBusStops(
+      latitude: _testLatitude,
+      longitude: _testLongitude,
+    );
+
+    final stopsJson = nearbyData['stops'];
+
+    if (stopsJson is! List || stopsJson.isEmpty) {
+      throw const ApiException(
+        '주변 버스 정류장을 찾지 못했습니다.',
+      );
+    }
+
+    final stops = stopsJson
+        .whereType<Map<String, dynamic>>()
+        .map(BusStopData.fromJson)
+        .toList();
+
+    if (stops.isEmpty) {
+      throw const ApiException(
+        '주변 버스 정류장을 찾지 못했습니다.',
+      );
+    }
+
+    // 서버가 가까운 순으로 반환하므로 첫 번째 정류장 선택
+    final selectedStop = stops.first;
+
+    final arrivalsData =
+        await ApiService.instance.getBusArrivals(
+      cityCode: selectedStop.cityCode,
+      stopId: selectedStop.stopId,
+    );
+
+    final arrivalsJson = arrivalsData['arrivals'];
+
+    final buses = arrivalsJson is List
+        ? arrivalsJson
+            .whereType<Map<String, dynamic>>()
+            .map(BusData.fromJson)
+            .toList()
+        : <BusData>[];
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _nearbyStops = stops;
+      _selectedStop = selectedStop;
+      _displayedBusList = buses;
+      _isLoading = false;
+      _errorMessage = null;
+    });
+  } on ApiException catch (error) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+      _errorMessage = error.message;
+    });
+  } catch (_) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+      _errorMessage = '버스 정보를 불러오는 중 오류가 발생했습니다.';
+    });
+  }
+}
 
   // 휴대폰에 저장된 버스 즐겨찾기 불러오기
   Future<void> _loadFavorites() async {
@@ -70,6 +164,12 @@ class _BusScreenState extends State<BusScreen> {
 
   // 목적지 검색으로 정류장이 변경되었을 때 안내
   void _showStopChangedMessage() {
+    final selectedStop = _selectedStop;
+
+    if (selectedStop == null) {
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -115,7 +215,7 @@ class _BusScreenState extends State<BusScreen> {
                 const SizedBox(height: 16),
                 Text(
                   '정류장이\n'
-                  '${_selectedStop.stopName} (으)로\n'
+                  '${selectedStop.stopName} (으)로\n'
                   '변경되었습니다.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -142,29 +242,40 @@ class _BusScreenState extends State<BusScreen> {
       _isRefreshing = true;
     });
 
-    // 실제 API 연결 전 새로고침 동작을 확인하기 위한 임시 지연
-    await Future.delayed(
-      const Duration(milliseconds: 700),
-    );
+    try {
+      await _loadBusData();
 
-    if (!mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSearching = false;
+        _searchController.clear();
+      });
+
+      _showTemporaryMessage(
+        '버스 정보를 새로고침했습니다.',
+      );
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showTemporaryMessage(
+        error.message,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
     }
-
-    setState(() {
-      _displayedBusList = List.from(mockBusList);
-      _isSearching = false;
-      _searchController.clear();
-      _isRefreshing = false;
-    });
-
-    _showTemporaryMessage(
-      '버스 정보를 새로고침했습니다. 현재는 임시 데이터입니다.',
-    );
   }
 
   // 목적지 검색
-  void _searchDestination() {
+  Future<void> _searchDestination() async {
     FocusScope.of(context).unfocus();
 
     final destination = _searchController.text.trim();
@@ -176,120 +287,138 @@ class _BusScreenState extends State<BusScreen> {
       return;
     }
 
-    BusStopData? matchedStop;
-    List<BusData> matchedBuses = [];
-
-    // 현재 선택 정류장을 먼저 확인
-    final currentStopBuses =
-        mockBusListByStop[_selectedStop.stopId] ?? [];
-
-    matchedBuses = _findMatchingBuses(
-      currentStopBuses,
-      destination,
-    );
-
-    if (matchedBuses.isNotEmpty) {
-      matchedStop = _selectedStop;
-    }
-
-    // 현재 정류장에서 찾지 못하면 주변 정류장 확인
-    if (matchedStop == null) {
-      for (final stop in mockNearbyBusStops) {
-        if (stop.stopId == _selectedStop.stopId) {
-          continue;
-        }
-
-        final buses =
-            mockBusListByStop[stop.stopId] ?? [];
-
-        final result = _findMatchingBuses(
-          buses,
-          destination,
-        );
-
-        if (result.isNotEmpty) {
-          matchedStop = stop;
-          matchedBuses = result;
-          break;
-        }
-      }
-    }
-
-    final previousStopId = _selectedStop.stopId;
+    final previousStopId = _selectedStop?.stopId;
 
     setState(() {
-      _isSearching = true;
-
-      if (matchedStop != null) {
-        _wasStopAutomaticallyChanged = matchedStop.stopId != previousStopId;
-
-        _selectedStop = matchedStop;
-        _displayedBusList = matchedBuses;
-      } else {
-        _wasStopAutomaticallyChanged = false;
-        _displayedBusList = [];
-      }
+      _isLoading = true;
+      _errorMessage = null;
     });
 
-    if (_wasStopAutomaticallyChanged) {
-      _showStopChangedMessage();
+    try {
+      final searchData = await ApiService.instance.searchBuses(
+        latitude: _testLatitude,
+        longitude: _testLongitude,
+        destination: destination,
+      );
+
+      final stopJson = searchData['stop'];
+      final busesJson = searchData['buses'];
+
+      BusStopData? matchedStop;
+
+      if (stopJson is Map<String, dynamic>) {
+        matchedStop = BusStopData.fromJson(stopJson);
+      }
+
+      final matchedBuses = busesJson is List
+          ? busesJson
+              .whereType<Map<String, dynamic>>()
+              .map(BusData.fromJson)
+              .toList()
+          : <BusData>[];
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSearching = true;
+        _displayedBusList = matchedBuses;
+        _isLoading = false;
+
+        if (matchedStop != null) {
+          _wasStopAutomaticallyChanged =
+              previousStopId != null &&
+              matchedStop.stopId != previousStopId;
+
+          _selectedStop = matchedStop;
+        } else {
+          _wasStopAutomaticallyChanged = false;
+        }
+      });
+
+      if (_wasStopAutomaticallyChanged) {
+        _showStopChangedMessage();
+      }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error.message;
+      });
+
+      _showTemporaryMessage(
+        error.message,
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '버스를 검색하는 중 오류가 발생했습니다.';
+      });
     }
-
-  }
-
-  List<BusData> _findMatchingBuses(
-    List<BusData> buses,
-    String destination,
-  ) {
-    final normalizedDestination =
-        destination.toLowerCase();
-
-    return buses.where((bus) {
-      final destinations =
-          mockDestinationsByRoute[bus.routeId] ?? [];
-
-      return destinations.any(
-        (stopName) => stopName
-            .toLowerCase()
-            .contains(normalizedDestination),
-      );
-    }).map((bus) {
-      final destinations =
-          mockDestinationsByRoute[bus.routeId] ?? [];
-
-      final matchedDestination =
-          destinations.firstWhere(
-        (stopName) => stopName
-            .toLowerCase()
-            .contains(normalizedDestination),
-        orElse: () => destination,
-      );
-
-      return BusData(
-        routeId: bus.routeId,
-        busNumber: bus.busNumber,
-        routeType: bus.routeType,
-        startStop: bus.startStop,
-        endStop: bus.endStop,
-        matchedStop: '$matchedDestination (임시)',
-        remainingStops: bus.remainingStops,
-        arrivalMinutes: bus.arrivalMinutes,
-        isFavorite: bus.isFavorite,
-      );
-    }).toList();
   }
 
   // 검색 초기화
-  void _clearSearch() {
+  Future<void> _clearSearch() async {
     _searchController.clear();
+
+    final selectedStop = _selectedStop;
+
+    if (selectedStop == null) {
+      setState(() {
+        _isSearching = false;
+        _displayedBusList = [];
+      });
+      return;
+    }
 
     setState(() {
       _isSearching = false;
-
-      _displayedBusList = List.from(
-        mockBusListByStop[_selectedStop.stopId] ?? [],
-      );
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    try {
+      final arrivalsData =
+          await ApiService.instance.getBusArrivals(
+        cityCode: selectedStop.cityCode,
+        stopId: selectedStop.stopId,
+      );
+
+      final arrivalsJson = arrivalsData['arrivals'];
+
+      final buses = arrivalsJson is List
+          ? arrivalsJson
+              .whereType<Map<String, dynamic>>()
+              .map(BusData.fromJson)
+              .toList()
+          : <BusData>[];
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _displayedBusList = buses;
+        _isLoading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error.message;
+      });
+    }
   }
 
   // 버스 카드 선택
@@ -352,6 +481,13 @@ class _BusScreenState extends State<BusScreen> {
 
   // 주변 정류장 선택창
   void _showStopSelectionMenu() {
+    if (_nearbyStops.isEmpty) {
+      _showTemporaryMessage(
+        '선택할 수 있는 주변 정류장이 없습니다.',
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -382,10 +518,10 @@ class _BusScreenState extends State<BusScreen> {
 
                 const SizedBox(height: 18),
 
-                for (final stop in mockNearbyBusStops)
+                for (final stop in _nearbyStops)
                   ListTile(
                     leading: Icon(
-                      stop.stopId == _selectedStop.stopId
+                      stop.stopId == _selectedStop?.stopId
                           ? Icons.radio_button_checked
                           : Icons.radio_button_off,
                     ),
@@ -397,21 +533,12 @@ class _BusScreenState extends State<BusScreen> {
                       ),
                     ),
                     subtitle: Text(
-                      '${stop.distanceM}m (임시)',
+                      '${stop.distanceM}m',
                     ),
-                    onTap: () {
-                      setState(() {
-                        _selectedStop = stop;
-
-                        _displayedBusList = List.from(
-                          mockBusListByStop[stop.stopId] ?? [],
-                        );
-
-                        _isSearching = false;
-                        _searchController.clear();
-                      });
-
+                    onTap: () async {
                       Navigator.pop(bottomSheetContext);
+
+                      await _selectStop(stop);
                     },
                   ),
               ],
@@ -420,6 +547,53 @@ class _BusScreenState extends State<BusScreen> {
         );
       },
     );
+  }
+
+  Future<void> _selectStop(BusStopData stop) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final arrivalsData =
+          await ApiService.instance.getBusArrivals(
+        cityCode: stop.cityCode,
+        stopId: stop.stopId,
+      );
+
+      final arrivalsJson = arrivalsData['arrivals'];
+
+      final buses = arrivalsJson is List
+          ? arrivalsJson
+              .whereType<Map<String, dynamic>>()
+              .map(BusData.fromJson)
+              .toList()
+          : <BusData>[];
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _selectedStop = stop;
+        _displayedBusList = buses;
+        _isSearching = false;
+        _searchController.clear();
+        _isLoading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error.message;
+      });
+
+      _showTemporaryMessage(error.message);
+    }
   }
 
   @override
@@ -588,7 +762,7 @@ class _BusScreenState extends State<BusScreen> {
         if (_isSearching) ...[
           const SizedBox(height: 10),
           Text(
-            "'${_searchController.text.trim()}' 목적지 검색 결과 (임시)",
+            "'${_searchController.text.trim()}' 목적지 검색 결과",
             style: const TextStyle(
               fontSize: 16,
               color: Colors.black54,
@@ -601,6 +775,62 @@ class _BusScreenState extends State<BusScreen> {
 
   // 가까운 정류장 영역
   Widget _buildNearbyStopSection() {
+    final selectedStop = _selectedStop;
+
+    if (_isLoading) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.black12,
+          ),
+        ),
+        child: const Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+              ),
+            ),
+            SizedBox(width: 12),
+            Text(
+              '가까운 정류장을 찾고 있습니다.',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (selectedStop == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.black12,
+          ),
+        ),
+        child: const Text(
+          '가까운 정류장 정보가 없습니다.',
+          style: TextStyle(
+            fontSize: 18,
+            color: Colors.black54,
+          ),
+        ),
+      );
+    }
+
     return InkWell(
       onTap: _showStopSelectionMenu,
       borderRadius: BorderRadius.circular(16),
@@ -629,7 +859,7 @@ class _BusScreenState extends State<BusScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _selectedStop.stopName,
+                    selectedStop.stopName,
                     style: const TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.w600,
@@ -637,7 +867,7 @@ class _BusScreenState extends State<BusScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${_selectedStop.distanceM}m (임시)',
+                    '${selectedStop.distanceM}m',
                     style: const TextStyle(
                       fontSize: 17,
                       color: Colors.black54,
@@ -658,6 +888,51 @@ class _BusScreenState extends State<BusScreen> {
 
   // 버스 목록
   Widget _buildBusList() {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: 40,
+        ),
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+          vertical: 32,
+          horizontal: 20,
+        ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: Colors.black38,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _loadBusData,
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (_displayedBusList.isEmpty) {
       return Container(
         width: double.infinity,
@@ -674,7 +949,7 @@ class _BusScreenState extends State<BusScreen> {
             ),
             SizedBox(height: 12),
             Text(
-              '목적지를 지나는 버스를 찾지 못했습니다. (임시)',
+              '목적지를 지나는 버스를 찾지 못했습니다.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 18,
