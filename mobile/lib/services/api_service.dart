@@ -200,9 +200,9 @@ class ApiService {
       return body['data'] as Map<String, dynamic>;
     } on ApiException {
       rethrow;
-    } catch (_) {
-      throw const ApiException(
-        '버스 서버에 연결할 수 없습니다.',
+    } catch (error) {
+      throw ApiException(
+        '버스 처리 중 오류: $error',
       );
     }
   }

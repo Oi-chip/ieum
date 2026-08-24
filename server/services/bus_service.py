@@ -32,6 +32,7 @@ REQUEST_TIMEOUT_SECONDS = 10
 EARTH_RADIUS_METERS = 6_371_000
 ROUTE_STOPS_PAGE_SIZE = 100
 MAX_ROUTE_STOPS_PAGES = 10
+SEARCH_STOP_LIMIT = 5
 
 
 class BusServiceError(Exception):
@@ -320,3 +321,131 @@ def get_stop_routes(city_code, stop_id):
         routes.append(route)
 
     return routes
+
+def search_buses_by_destination(
+    latitude,
+    longitude,
+    destination,
+):
+    """주변 정류장에서 목적지를 향해 갈 수 있는 버스를 검색합니다."""
+    destination = destination.strip()
+
+    nearby_stops = get_nearby_stops(
+        latitude,
+        longitude,
+    )
+
+    if not nearby_stops:
+        return {
+            "stop": None,
+            "buses": [],
+        }
+
+    # 가까운 순서대로 최대 5개 정류장을 확인합니다.
+    search_stops = nearby_stops[:SEARCH_STOP_LIMIT]
+
+    for stop in search_stops:
+        city_code = stop["city_code"]
+        stop_id = stop["id"]
+
+        routes = get_stop_routes(
+            city_code,
+            stop_id,
+        )
+
+        if not routes:
+            continue
+
+        arrivals = get_bus_arrivals(
+            city_code,
+            stop_id,
+        )
+
+        arrival_by_route_id = {
+            arrival["route_id"]: arrival
+            for arrival in arrivals
+        }
+
+        matched_buses = []
+
+        for route in routes:
+            route_detail = get_bus_route(
+                city_code,
+                route["route_id"],
+            )
+
+            if route_detail is None:
+                continue
+
+            route_stops = route_detail.get(
+                "stops",
+                [],
+            )
+
+            # 현재 승차 정류장이 노선에서 몇 번째인지 확인합니다.
+            current_stop = next(
+                (
+                    route_stop
+                    for route_stop in route_stops
+                    if route_stop["id"] == stop_id
+                ),
+                None,
+            )
+
+            if current_stop is None:
+                continue
+
+            current_order = current_stop["order"]
+
+            # 현재 정류장 이후의 정류장만 목적지 후보로 확인합니다.
+            matched_stop = next(
+                (
+                    route_stop
+                    for route_stop in route_stops
+                    if (
+                        route_stop["order"] > current_order
+                        and destination.lower()
+                        in route_stop["name"].lower()
+                    )
+                ),
+                None,
+            )
+
+            if matched_stop is None:
+                continue
+
+            arrival = arrival_by_route_id.get(
+                route["route_id"]
+            )
+
+            matched_buses.append({
+                "route_id": route["route_id"],
+                "bus_number": route["bus_number"],
+                "route_type": route.get("route_type"),
+                "start_stop": route.get("start_stop"),
+                "end_stop": route.get("end_stop"),
+                "matched_stop": matched_stop["name"],
+                "remaining_stops": (
+                    arrival["remaining_stops"]
+                    if arrival is not None
+                    else None
+                ),
+                "arrival_minutes": (
+                    arrival["arrival_minutes"]
+                    if arrival is not None
+                    else None
+                ),
+            })
+
+        # 목적지로 갈 수 있는 가장 가까운 정류장을 찾으면 반환합니다.
+        if matched_buses:
+            return {
+                "stop": stop,
+                "buses": matched_buses,
+            }
+
+    return {
+        "stop": None,
+        "buses": [],
+    }
+
