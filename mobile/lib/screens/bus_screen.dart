@@ -493,55 +493,72 @@ Future<void> _loadBusData() async {
       isScrollControlled: true,
       builder: (bottomSheetContext) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '다른 정류장 선택',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  '이용할 정류장을 선택해 주세요.',
-                  style: TextStyle(
-                    fontSize: 17,
-                    color: Colors.black54,
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-
-                for (final stop in _nearbyStops)
-                  ListTile(
-                    leading: Icon(
-                      stop.stopId == _selectedStop?.stopId
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
+          child: FractionallySizedBox(
+            heightFactor: 0.75,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const Text(
+                    '다른 정류장 선택',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
                     ),
-                    title: Text(
-                      stop.stopName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${stop.distanceM}m',
-                    ),
-                    onTap: () async {
-                      Navigator.pop(bottomSheetContext);
-
-                      await _selectStop(stop);
-                    },
                   ),
-              ],
+
+                  const SizedBox(height: 8),
+
+                  const Text(
+                    '이용할 정류장을 선택해 주세요.',
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: Colors.black54,
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: _nearbyStops.length,
+                      separatorBuilder: (context, index) {
+                        return const Divider(
+                          height: 1,
+                        );
+                      },
+                      itemBuilder: (context, index) {
+                        final stop = _nearbyStops[index];
+
+                        return ListTile(
+                          leading: Icon(
+                            stop.stopId == _selectedStop?.stopId
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                          ),
+                          title: Text(
+                            stop.stopName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${stop.distanceM}m',
+                          ),
+                          onTap: () async {
+                            Navigator.pop(
+                              bottomSheetContext,
+                            );
+
+                            await _selectStop(stop);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
