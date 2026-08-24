@@ -12,6 +12,7 @@ import 'bus_detail_screen.dart';
 import 'settings_screen.dart';
 
 import '../widgets/sos_menu.dart';
+import '../services/api_service.dart';
 
 class BusScreen extends StatefulWidget {
   const BusScreen({super.key});
@@ -22,6 +23,7 @@ class BusScreen extends StatefulWidget {
 
 class _BusScreenState extends State<BusScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   List<BusData> _displayedBusList = [];
   List<BusData> _allBusList = [];
@@ -95,6 +97,82 @@ class _BusScreenState extends State<BusScreen> {
     }
   }
 
+  try {
+    final nearbyData =
+        await ApiService.instance.getNearbyBusStops(
+      latitude: _testLatitude,
+      longitude: _testLongitude,
+    );
+
+    final stopsJson = nearbyData['stops'];
+
+    if (stopsJson is! List || stopsJson.isEmpty) {
+      throw const ApiException(
+        '주변 버스 정류장을 찾지 못했습니다.',
+      );
+    }
+
+    final stops = stopsJson
+        .whereType<Map<String, dynamic>>()
+        .map(BusStopData.fromJson)
+        .toList();
+
+    if (stops.isEmpty) {
+      throw const ApiException(
+        '주변 버스 정류장을 찾지 못했습니다.',
+      );
+    }
+
+    // 서버가 가까운 순으로 반환하므로 첫 번째 정류장 선택
+    final selectedStop = stops.first;
+
+    final arrivalsData =
+        await ApiService.instance.getBusArrivals(
+      cityCode: selectedStop.cityCode,
+      stopId: selectedStop.stopId,
+    );
+
+    final arrivalsJson = arrivalsData['arrivals'];
+
+    final buses = arrivalsJson is List
+        ? arrivalsJson
+            .whereType<Map<String, dynamic>>()
+            .map(BusData.fromJson)
+            .toList()
+        : <BusData>[];
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _nearbyStops = stops;
+      _selectedStop = selectedStop;
+      _displayedBusList = buses;
+      _isLoading = false;
+      _errorMessage = null;
+    });
+  } on ApiException catch (error) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+      _errorMessage = error.message;
+    });
+  } catch (_) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+      _errorMessage = '버스 정보를 불러오는 중 오류가 발생했습니다.';
+    });
+  }
+}
+
   // 휴대폰에 저장된 버스 즐겨찾기 불러오기
   Future<void> _loadFavorites() async {
     final favoriteRouteKeys = await FavoriteBusService.getFavoriteRouteIds();
@@ -114,6 +192,7 @@ class _BusScreenState extends State<BusScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -221,6 +300,16 @@ class _BusScreenState extends State<BusScreen> {
     ++_searchRequestId;
     _searchController.clear();
 
+    final selectedStop = _selectedStop;
+
+    if (selectedStop == null) {
+      setState(() {
+        _isSearching = false;
+        _displayedBusList = [];
+      });
+      return;
+    }
+
     setState(() {
       _isSearching = false;
       _isSearchLoading = false;
@@ -280,7 +369,7 @@ class _BusScreenState extends State<BusScreen> {
         ),
       ),
     );
-
+    _searchFocusNode.unfocus();
     if (updatedBus == null) {
       return;
     }
@@ -345,6 +434,13 @@ class _BusScreenState extends State<BusScreen> {
 
   // 주변 정류장 선택창
   void _showStopSelectionMenu() {
+    if (_nearbyStops.isEmpty) {
+      _showTemporaryMessage(
+        '선택할 수 있는 주변 정류장이 없습니다.',
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -360,7 +456,7 @@ class _BusScreenState extends State<BusScreen> {
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
 
-                const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
                 const Text(
                   '전체 주변 정류장 또는 한 정류장을 선택해 주세요.',
@@ -650,6 +746,62 @@ class _BusScreenState extends State<BusScreen> {
 
   // 목적지 검색에 사용할 출발 정류장 영역
   Widget _buildNearbyStopSection() {
+    final selectedStop = _selectedStop;
+
+    if (_isLoading) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.black12,
+          ),
+        ),
+        child: const Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+              ),
+            ),
+            SizedBox(width: 12),
+            Text(
+              '가까운 정류장을 찾고 있습니다.',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (selectedStop == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.black12,
+          ),
+        ),
+        child: const Text(
+          '가까운 정류장 정보가 없습니다.',
+          style: TextStyle(
+            fontSize: 18,
+            color: Colors.black54,
+          ),
+        ),
+      );
+    }
+
     return InkWell(
       onTap: _showStopSelectionMenu,
       borderRadius: BorderRadius.circular(16),

@@ -19,7 +19,8 @@ class BusDetailScreen extends StatefulWidget {
 }
 
 class _BusDetailScreenState extends State<BusDetailScreen> {
-  late BusDetailData _detail;
+  BusDetailData? _detail;
+
   late bool _isFavorite;
   bool _isLoadingRoute = true;
   bool _favoriteUpdateInProgress = false;
@@ -208,31 +209,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
               const Divider(height: 1),
 
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildNearbyStopSection(),
-
-                      const SizedBox(height: 20),
-
-                      _buildBusSummarySection(),
-
-                      const SizedBox(height: 20),
-
-                      _buildRouteTimeSection(),
-
-                      const SizedBox(height: 20),
-
-                      _buildRouteSection(),
-
-                      const SizedBox(height: 24),
-
-                      _buildBackButton(),
-                    ],
-                  ),
-                ),
+                child: _buildContent(),
               ),
 
               _buildVoiceButton(),
@@ -243,8 +220,51 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
+  Widget _buildContent() {
+    final detail = _detail;
+
+    if (detail == null) {
+      return const Center(
+        child: Text(
+          '버스 상세정보가 없습니다.',
+          style: TextStyle(
+            fontSize: 18,
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildNearbyStopSection(detail),
+
+          const SizedBox(height: 20),
+
+          _buildBusSummarySection(detail),
+
+          const SizedBox(height: 20),
+
+          _buildRouteTimeSection(detail),
+
+          const SizedBox(height: 20),
+
+          _buildRouteSection(detail),
+
+          const SizedBox(height: 24),
+
+          _buildBackButton(),
+        ],
+      ),
+    );
+  }
+
   // 가까운 정류장 표시
-  Widget _buildNearbyStopSection() {
+  Widget _buildNearbyStopSection(
+    BusDetailData detail,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -262,12 +282,12 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            _detail.nearbyStop.stopName,
+            detail.nearbyStop.stopName,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
-            '${_detail.nearbyStop.distanceM}m',
+            '${detail.nearbyStop.distanceM}m',
             style: const TextStyle(fontSize: 15, color: Colors.black54),
           ),
         ],
@@ -276,7 +296,9 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
   }
 
   // 선택한 버스 요약정보
-  Widget _buildBusSummarySection() {
+  Widget _buildBusSummarySection(
+    BusDetailData detail,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -292,14 +314,13 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
             children: [
               Expanded(
                 child: Text(
-                  _detail.bus.busNumber,
+                  detail.bus.busNumber,
                   style: const TextStyle(
                     fontSize: 38,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-
               IconButton(
                 onPressed: _favoriteUpdateInProgress || _popInProgress
                     ? null
@@ -313,18 +334,18 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
             ],
           ),
 
-          if (_detail.bus.routeType != null) ...[
+          if (detail.bus.routeType != null) ...[
             const SizedBox(height: 4),
             Text(
-              _detail.bus.routeType!,
+              detail.bus.routeType!,
               style: const TextStyle(fontSize: 17, color: Colors.black54),
             ),
           ],
 
-          if (_detail.bus.apiBusNumber != _detail.bus.busNumber) ...[
+          if (detail.bus.apiBusNumber != detail.bus.busNumber) ...[
             const SizedBox(height: 4),
             Text(
-              '공공데이터 등록 번호 ${_detail.bus.apiBusNumber}',
+              '공공데이터 등록 번호 ${detail.bus.apiBusNumber}',
               style: const TextStyle(fontSize: 16, color: Colors.black54),
             ),
           ],
@@ -332,33 +353,33 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
           const SizedBox(height: 14),
 
           Text(
-            _buildRouteText(),
+            _buildRouteText(detail),
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
 
           const SizedBox(height: 14),
 
           Text(
-            _buildArrivalText(),
+            _buildArrivalText(detail),
             style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
           ),
 
           const SizedBox(height: 6),
 
           Text(
-            _buildRemainingStopsText(),
+            _buildRemainingStopsText(detail),
             style: const TextStyle(fontSize: 17, color: Colors.black54),
           ),
 
-          if (_detail.bus.matchedStop != null) ...[
+          if (detail.bus.matchedStop != null) ...[
             const SizedBox(height: 8),
             Text(
-              '하차 정류장 : ${_detail.bus.matchedStop}',
+              '하차 정류장 : ${detail.bus.matchedStop}',
               style: const TextStyle(fontSize: 17),
             ),
           ],
 
-          if (!_detail.bus.dataComplete) ...[
+          if (!detail.bus.dataComplete) ...[
             const SizedBox(height: 8),
             const Text(
               '일부 운행 정보는 제공되지 않습니다.',
@@ -371,7 +392,9 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
   }
 
   // 첫차, 막차, 배차간격 표시
-  Widget _buildRouteTimeSection() {
+  Widget _buildRouteTimeSection(
+    BusDetailData detail,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -391,33 +414,33 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
           const SizedBox(height: 14),
 
           Text(
-            '첫차 : ${_detail.firstBusTime ?? '정보 없음'}',
+            '첫차 : ${detail.firstBusTime ?? '정보 없음'}',
             style: const TextStyle(fontSize: 18),
           ),
 
           const SizedBox(height: 8),
 
           Text(
-            '막차 : ${_detail.lastBusTime ?? '정보 없음'}',
+            '막차 : ${detail.lastBusTime ?? '정보 없음'}',
             style: const TextStyle(fontSize: 18),
           ),
 
           const SizedBox(height: 8),
 
-          Text(_buildIntervalText(), style: const TextStyle(fontSize: 18)),
+          Text(_buildIntervalText(detail), style: const TextStyle(fontSize: 18)),
 
-          if (_detail.saturdayIntervalMinutes != null) ...[
+          if (detail.saturdayIntervalMinutes != null) ...[
             const SizedBox(height: 8),
             Text(
-              '토요일 배차간격 : ${_detail.saturdayIntervalMinutes}분',
+              '토요일 배차간격 : ${detail.saturdayIntervalMinutes}분',
               style: const TextStyle(fontSize: 18),
             ),
           ],
 
-          if (_detail.sundayIntervalMinutes != null) ...[
+          if (detail.sundayIntervalMinutes != null) ...[
             const SizedBox(height: 8),
             Text(
-              '일요일 배차간격 : ${_detail.sundayIntervalMinutes}분',
+              '일요일 배차간격 : ${detail.sundayIntervalMinutes}분',
               style: const TextStyle(fontSize: 18),
             ),
           ],
@@ -427,7 +450,9 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
   }
 
   // 전체 노선 표시
-  Widget _buildRouteSection() {
+  Widget _buildRouteSection(
+    BusDetailData detail,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -468,7 +493,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
               ),
             ),
 
-          if (!_isLoadingRoute && _routeError == null && _detail.stops.isEmpty)
+          if (!_isLoadingRoute && _routeError == null && detail.stops.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
@@ -479,7 +504,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
               ),
             ),
 
-          for (int index = 0; index < _detail.stops.length; index++) ...[
+          for (int index = 0; index < detail.stops.length; index++) ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -487,7 +512,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
                   children: [
                     const Icon(Icons.circle, size: 15),
 
-                    if (index != _detail.stops.length - 1)
+                    if (index != detail.stops.length - 1)
                       Container(width: 2, height: 42, color: Colors.black26),
                   ],
                 ),
@@ -498,7 +523,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Text(
-                      _routeStopLabel(index),
+                      _routeStopLabel(detail, index),
                       style: const TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.w600,
@@ -539,13 +564,15 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  String _buildRouteText() {
-    final start = _detail.bus.startStop;
-    final end = _detail.bus.endStop;
+  String _buildRouteText(
+    BusDetailData detail,
+  ) {
+    final start = detail.bus.startStop;
+    final end = detail.bus.endStop;
 
     if (start != null && end != null) {
       if (start == end) {
-        final via = _detail.bus.viaStop;
+        final via = detail.bus.viaStop;
         return via == null ? '$start 출발·도착 순환노선' : '$start → $via → $end';
       }
       return '$start → $end';
@@ -554,46 +581,50 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     return '노선 정보 없음';
   }
 
-  String _routeStopLabel(int index) {
-    final stop = _detail.stops[index];
+  String _routeStopLabel(BusDetailData detail, int index) {
+    final stop = detail.stops[index];
     final stopName = stop.stopName;
     final labels = <String>[];
-    if (stop.order == _detail.bus.boardingOrder) {
+    if (stop.order == detail.bus.boardingOrder) {
       labels.add('승차');
     } else if (index == 0) {
       labels.add('기점');
     }
-    if (stopName == _detail.bus.viaStop) labels.add('회차');
-    if (stop.order == _detail.bus.destinationOrder) {
+    if (stopName == detail.bus.viaStop) labels.add('회차');
+    if (stop.order == detail.bus.destinationOrder) {
       labels.add('하차');
-    } else if (index == _detail.stops.length - 1) {
+    } else if (index == detail.stops.length - 1) {
       labels.add('종점');
     }
     return labels.isEmpty ? stopName : "$stopName (${labels.join('·')})";
   }
 
-  String _buildArrivalText() {
-    if (_detail.bus.arrivalMinutes == null) {
+  String _buildArrivalText(BusDetailData detail) {
+    if (detail.bus.arrivalMinutes == null) {
       return '도착 정보 없음';
     }
 
-    return '${_detail.bus.arrivalMinutes}분 후 도착';
+    return '${detail.bus.arrivalMinutes}분 후 도착';
   }
 
-  String _buildRemainingStopsText() {
-    if (_detail.bus.remainingStops == null) {
+  String _buildRemainingStopsText(
+    BusDetailData detail,
+  ) {
+    if (detail.bus.remainingStops == null) {
       return '남은 정류장 정보 없음';
     }
 
-    return '${_detail.bus.remainingStops}개 정류장 전';
+    return '${detail.bus.remainingStops}개 정류장 전';
   }
 
-  String _buildIntervalText() {
-    if (_detail.weekdayIntervalMinutes == null) {
+  String _buildIntervalText(
+    BusDetailData detail,
+  ) {
+    if (detail.weekdayIntervalMinutes == null) {
       return '배차간격 : 정보 없음';
     }
 
     return '평일 배차간격 : '
-        '${_detail.weekdayIntervalMinutes}분';
+        '${detail.weekdayIntervalMinutes}분';
   }
 }

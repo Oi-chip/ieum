@@ -121,6 +121,27 @@ def _parse_route():
 
     return (city_code, route_id), None
 
+def _parse_destination():
+    destination = request.args.get(
+        "destination",
+        "",
+    ).strip()
+
+    if not destination:
+        return None, _error_response(
+            "MISSING_DESTINATION",
+            "도착지역을 입력해 주세요.",
+            400,
+        )
+
+    if len(destination) > 50:
+        return None, _error_response(
+            "INVALID_DESTINATION",
+            "도착지역 입력값이 너무 깁니다.",
+            400,
+        )
+
+    return destination, None
 
 def _parse_bus_search():
     location, error = _parse_location()

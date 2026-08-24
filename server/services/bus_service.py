@@ -352,6 +352,34 @@ def _optional_float(value):
     except (TypeError, ValueError):
         return None
 
+def get_route_stops(city_code, route_id):
+    """목적지 검색에 사용할 노선 정류장 목록만 반환합니다."""
+    stop_items = _get_all_response_items(
+        BUS_ROUTE_STOPS_API_URL,
+        {
+            "cityCode": city_code,
+            "routeId": route_id,
+        },
+    )
+
+    stops = []
+
+    for stop_item in stop_items:
+        try:
+            stop = {
+                "id": str(stop_item["nodeid"]),
+                "name": str(stop_item["nodenm"]),
+                "order": int(stop_item["nodeord"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        stops.append(stop)
+
+    return sorted(
+        stops,
+        key=lambda stop: stop["order"],
+    )
 
 def _provider_city_codes(city_code, additional_provider_city_codes=()):
     return tuple(dict.fromkeys((
@@ -699,606 +727,145 @@ def get_stop_routes(city_code, stop_id):
     routes, _ = _get_stop_routes_with_status(city_code, stop_id)
     return routes
 
-
-def _normalize_search_text(value):
-    return "".join(
-        character.casefold()
-        for character in str(value or "")
-        if character.isalnum()
-    )
-
-
-def _route_key(route):
-    return (str(route["city_code"]), str(route["route_id"]))
-
-
-def _get_cached_nearby_stops(latitude, longitude):
-    key = (round(float(latitude), 6), round(float(longitude), 6))
-    return _nearby_stops_cache.get_or_load(
-        key,
-        lambda: get_nearby_stops(latitude, longitude),
-    )
-
-
-def _get_cached_stop_routes(
-    city_code,
-    stop_id,
-    additional_provider_city_codes=(),
-):
-    provider_city_codes = _provider_city_codes(
-        city_code,
-        additional_provider_city_codes,
-    )
-    normalized_stop_id = str(stop_id)
-
-    def get_cached_provider_routes(provider_city_code, provider_stop_id):
-        key = (str(provider_city_code), str(provider_stop_id))
-        return _stop_routes_cache.get_or_load(
-            key,
-            lambda: _load_stop_routes_for_provider(*key),
-        )
-
-    return _collect_stop_routes_for_providers(
-        provider_city_codes,
-        normalized_stop_id,
-        get_cached_provider_routes,
-    )
-
-
-def _get_cached_arrivals(city_code, stop_id):
-    key = (str(city_code), str(stop_id))
-    return _arrival_cache.get_or_load(
-        key,
-        lambda: get_bus_arrivals(*key),
-    )
-
-
-def _load_stop_bundle(
-    stop,
-    include_arrivals=True,
-    additional_provider_city_codes=(),
-):
-    routes = []
-    arrivals_by_route = {}
-    unavailable_provider_codes = []
-    unavailable_arrival_provider_codes = []
-    route_error = False
-    arrival_error = False
-
-    try:
-        routes, unavailable_provider_codes = _get_cached_stop_routes(
-            stop["city_code"],
-            stop["id"],
-            additional_provider_city_codes,
-        )
-    except BusServiceError:
-        route_error = True
-
-    if include_arrivals:
-        arrival_provider_codes = sorted({
-            route["city_code"] for route in routes
-        })
-        for provider_city_code in arrival_provider_codes:
-            try:
-                arrivals = _get_cached_arrivals(
-                    provider_city_code,
-                    stop["id"],
-                )
-            except BusServiceError:
-                unavailable_arrival_provider_codes.append(provider_city_code)
-                continue
-
-            for arrival in arrivals:
-                # Each provider response is sorted fastest first.
-                arrivals_by_route.setdefault(
-                    (provider_city_code, arrival["route_id"]),
-                    arrival,
-                )
-
-        arrival_error = bool(arrival_provider_codes) and (
-            len(unavailable_arrival_provider_codes)
-            == len(arrival_provider_codes)
-        )
-
-    return {
-        "stop": stop,
-        "routes": routes,
-        "arrivals": arrivals_by_route,
-        "route_error": route_error,
-        "arrival_error": arrival_error,
-        "unavailable_provider_codes": unavailable_provider_codes,
-        "unavailable_arrival_provider_codes": (
-            unavailable_arrival_provider_codes
-        ),
-    }
-
-
-def _collect_nearby_route_candidates(
-    latitude,
-    longitude,
-    origin_stop_id=None,
-    origin_city_code=None,
-    include_arrivals=True,
-    additional_provider_city_codes=(),
-):
-    nearby_stops = _get_cached_nearby_stops(latitude, longitude)
-    origin_stops = nearby_stops
-    if origin_stop_id:
-        origin_stops = [
-            stop for stop in nearby_stops
-            if stop["id"] == str(origin_stop_id)
-            and (
-                origin_city_code is None
-                or stop["city_code"] == str(origin_city_code)
-            )
-        ]
-        if not origin_stops:
-            raise BusServiceError("선택한 출발 정류장이 현재 위치 주변에 없습니다.")
-
-    bundles = []
-    if origin_stops:
-        worker_count = min(BUS_SEARCH_WORKERS, len(origin_stops))
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = {
-                executor.submit(
-                    _load_stop_bundle,
-                    stop,
-                    include_arrivals,
-                    additional_provider_city_codes,
-                ): stop
-                for stop in origin_stops
-            }
-            for future in as_completed(futures):
-                bundles.append(future.result())
-
-    if origin_stops and bundles and all(bundle["route_error"] for bundle in bundles):
-        raise BusServiceError("출발지 주변의 버스 노선을 불러오지 못했습니다.")
-
-    candidates = {}
-    for bundle in bundles:
-        stop = bundle["stop"]
-        for route in bundle["routes"]:
-            key = _route_key(route)
-            candidate = candidates.setdefault(key, {
-                "route": route,
-                "boardings": [],
-            })
-            candidate["boardings"].append({
-                "stop": stop,
-                "arrival": bundle["arrivals"].get(key),
-            })
-
-    return {
-        "nearby_stops": nearby_stops,
-        "origin_stops": origin_stops,
-        "bundles": bundles,
-        "candidates": candidates,
-        "unavailable_stop_count": sum(
-            1 for bundle in bundles if bundle["route_error"]
-        ),
-        "unavailable_provider_count": sum(
-            len(bundle["unavailable_provider_codes"])
-            for bundle in bundles
-        ),
-        "unavailable_arrival_provider_count": sum(
-            len(bundle.get("unavailable_arrival_provider_codes", []))
-            for bundle in bundles
-        ),
-        "arrival_information_unavailable": (
-            include_arrivals
-            and bool(candidates)
-            and all(
-                bundle["arrival_error"]
-                for bundle in bundles
-                if bundle["routes"]
-            )
-        ),
-    }
-
-
-def _boarding_priority(boarding):
-    arrival = boarding["arrival"] or {}
-    return (
-        boarding["stop"]["distance_m"],
-        arrival.get("arrival_seconds", 999_999),
-    )
-
-
-def _route_option(route, boarding):
-    result = {
-        **route,
-        "route_key": f'{route["city_code"]}:{route["route_id"]}',
-        "boarding_stop": boarding["stop"],
-        "remaining_stops": None,
-        "arrival_seconds": None,
-        "arrival_minutes": None,
-        "vehicle_type": None,
-    }
-    if boarding["arrival"] is not None:
-        result.update({
-            "remaining_stops": boarding["arrival"].get("remaining_stops"),
-            "arrival_seconds": boarding["arrival"].get("arrival_seconds"),
-            "arrival_minutes": boarding["arrival"].get("arrival_minutes"),
-            "vehicle_type": boarding["arrival"].get("vehicle_type"),
-        })
-    return result
-
-
-def get_nearby_bus_overview(latitude, longitude):
-    """반경 500m의 모든 정류장과 경유 노선을 한 번에 반환합니다."""
-    collected = _collect_nearby_route_candidates(latitude, longitude)
-    routes = []
-    for candidate in collected["candidates"].values():
-        boarding = min(candidate["boardings"], key=_boarding_priority)
-        routes.append(_route_option(candidate["route"], boarding))
-
-    routes.sort(key=lambda route: (
-        route["arrival_minutes"] is None,
-        route["arrival_minutes"] or 0,
-        route["boarding_stop"]["distance_m"],
-        route["bus_number"],
-    ))
-    partial = bool(
-        collected["unavailable_stop_count"]
-        or collected["unavailable_provider_count"]
-        or collected["unavailable_arrival_provider_count"]
-    )
-    return {
-        "stops": collected["nearby_stops"],
-        "routes": routes,
-        "origin_stop_count": len(collected["origin_stops"]),
-        "route_count": len(routes),
-        "arrival_information_unavailable": (
-            collected["arrival_information_unavailable"]
-        ),
-        "partial": partial,
-        "unavailable_stop_count": collected["unavailable_stop_count"],
-        "unavailable_provider_count": collected["unavailable_provider_count"],
-        "unavailable_arrival_provider_count": (
-            collected["unavailable_arrival_provider_count"]
-        ),
-    }
-
-
-def _boarding_stop_indices(route_stops, nearby_stop):
-    nearby_stop_id = nearby_stop.get("id")
-    exact_matches = [
-        index
-        for index, route_stop in enumerate(route_stops)
-        if nearby_stop_id and route_stop.get("id") == nearby_stop_id
-    ]
-    if exact_matches:
-        return exact_matches
-
-    nearby_stop_number = nearby_stop.get("number")
-    number_matches = [
-        index
-        for index, route_stop in enumerate(route_stops)
-        if nearby_stop_number
-        and route_stop.get("number") == nearby_stop_number
-    ]
-    if number_matches:
-        return number_matches
-
-    nearby_name = _normalize_search_text(nearby_stop.get("name"))
-    nearby_latitude = nearby_stop.get("latitude")
-    nearby_longitude = nearby_stop.get("longitude")
-    if (
-        not nearby_name
-        or nearby_latitude is None
-        or nearby_longitude is None
-    ):
-        return []
-
-    distance_matches = []
-    for index, route_stop in enumerate(route_stops):
-        if _normalize_search_text(route_stop.get("name")) != nearby_name:
-            continue
-        route_latitude = route_stop.get("latitude")
-        route_longitude = route_stop.get("longitude")
-        if route_latitude is None or route_longitude is None:
-            continue
-        distance = _distance_in_meters(
-            route_latitude,
-            route_longitude,
-            nearby_latitude,
-            nearby_longitude,
-        )
-        if distance <= 120:
-            distance_matches.append((index, distance))
-
-    if not distance_matches:
-        return []
-    shortest_distance = min(distance for _, distance in distance_matches)
-    return [
-        index
-        for index, distance in distance_matches
-        if distance == shortest_distance
-    ]
-
-
-def _find_direct_journey(route_stops, boardings, destination):
-    destination_text = _normalize_search_text(destination)
-    matches = []
-
-    for boarding in boardings:
-        boarding_indices = _boarding_stop_indices(
-            route_stops,
-            boarding["stop"],
-        )
-        for boarding_index in boarding_indices:
-            route_stop = route_stops[boarding_index]
-            for destination_index in range(boarding_index + 1, len(route_stops)):
-                destination_stop = route_stops[destination_index]
-                destination_name = _normalize_search_text(destination_stop["name"])
-                destination_number = _normalize_search_text(
-                    destination_stop.get("number")
-                )
-                if (
-                    destination_text not in destination_name
-                    and destination_text != destination_number
-                ):
-                    continue
-                matches.append({
-                    "boarding": boarding,
-                    "boarding_stop": route_stop,
-                    "destination_stop": destination_stop,
-                    "stops_between": destination_index - boarding_index,
-                })
-                break
-
-    if not matches:
-        return None
-    return min(matches, key=lambda match: (
-        match["boarding"]["stop"]["distance_m"],
-        match["stops_between"],
-        (match["boarding"]["arrival"] or {}).get(
-            "arrival_seconds",
-            999_999,
-        ),
-    ))
-
-
-def _search_route_candidate(candidate, destination):
-    route = candidate["route"]
-    route_stops = None
-    route_stops_error = False
-    try:
-        route_stops = _get_route_stops(route["city_code"], route["route_id"])
-    except BusServiceError:
-        route_stops_error = True
-
-    route_stops_incomplete = route_stops_error or not route_stops
-    journey = None
-    if route_stops:
-        journey = _find_direct_journey(
-            route_stops,
-            candidate["boardings"],
-            destination,
-        )
-
-    normalized_destination = _normalize_search_text(destination)
-    summary_destination_match = normalized_destination in _normalize_search_text(
-        route.get("end_stop")
-    )
-    if journey is None:
-        if route_stops or not summary_destination_match:
-            return None, route_stops_incomplete
-
-    if journey is None:
-        boarding = min(candidate["boardings"], key=_boarding_priority)
-        journey = {
-            "boarding": boarding,
-            "boarding_stop": None,
-            "destination_stop": None,
-            "stops_between": None,
-        }
-
-    route_info = None
-    route_info_error = False
-    try:
-        route_info = _get_route_info(route["city_code"], route["route_id"])
-    except BusServiceError:
-        route_info_error = True
-
-    detail = _build_route(
-        route["city_code"],
-        route["route_id"],
-        route_info,
-        route_stops if route_stops else None,
-        route,
-    )
-    result = _route_option(route, journey["boarding"])
-    result.update({
-        "bus_number": detail["number"] or route["bus_number"],
-        "api_bus_number": detail["api_number"] or route["api_bus_number"],
-        "route_type": detail["type"] or route.get("route_type"),
-        "start_stop": detail["start_stop"] or route.get("start_stop"),
-        "end_stop": detail["end_stop"] or route.get("end_stop"),
-        "via_stop": detail["via_stop"],
-        "first_bus_time": detail["first_bus_time"],
-        "last_bus_time": detail["last_bus_time"],
-        "weekday_interval_minutes": detail["weekday_interval_minutes"],
-        "saturday_interval_minutes": detail["saturday_interval_minutes"],
-        "sunday_interval_minutes": detail["sunday_interval_minutes"],
-        "matched_stop": (
-            journey["destination_stop"]["name"]
-            if journey["destination_stop"] is not None
-            else route.get("end_stop") or destination
-        ),
-        "destination_stop": journey["destination_stop"],
-        "boarding_order": (
-            journey["boarding_stop"]["order"]
-            if journey["boarding_stop"] is not None
-            else None
-        ),
-        "destination_order": (
-            journey["destination_stop"]["order"]
-            if journey["destination_stop"] is not None
-            else None
-        ),
-        "stops_between": journey["stops_between"],
-        "route_stop_count": len(route_stops or []),
-        "data_complete": detail["data_complete"],
-        "unavailable_fields": detail["unavailable_fields"],
-    })
-    return result, (
-        route_stops_incomplete
-        or route_info_error
-        or not detail["data_complete"]
-    )
-
-
-def _attach_search_arrivals(results):
-    stops_by_key = {}
-    for result in results:
-        stop = result["boarding_stop"]
-        key = (result["city_code"], stop["id"])
-        stops_by_key[key] = {
-            "city_code": result["city_code"],
-            "id": stop["id"],
-        }
-
-    arrivals_by_stop = {}
-    unavailable_count = 0
-    if stops_by_key:
-        worker_count = min(BUS_SEARCH_WORKERS, len(stops_by_key))
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = {
-                executor.submit(
-                    _get_cached_arrivals,
-                    stop["city_code"],
-                    stop["id"],
-                ): key
-                for key, stop in stops_by_key.items()
-            }
-            for future in as_completed(futures):
-                key = futures[future]
-                try:
-                    arrivals = future.result()
-                except BusServiceError:
-                    unavailable_count += 1
-                    continue
-                arrivals_by_route = {}
-                for arrival in arrivals:
-                    arrivals_by_route.setdefault(arrival["route_id"], arrival)
-                arrivals_by_stop[key] = arrivals_by_route
-
-    for result in results:
-        stop = result["boarding_stop"]
-        arrival = arrivals_by_stop.get(
-            (result["city_code"], stop["id"]),
-            {},
-        ).get(result["route_id"])
-        if arrival is None:
-            continue
-        result.update({
-            "remaining_stops": arrival.get("remaining_stops"),
-            "arrival_seconds": arrival.get("arrival_seconds"),
-            "arrival_minutes": arrival.get("arrival_minutes"),
-            "vehicle_type": arrival.get("vehicle_type"),
-        })
-
-    return unavailable_count
-
-
-def search_bus_routes(
+def search_buses_by_destination(
     latitude,
     longitude,
     destination,
-    origin_stop_id=None,
-    origin_city_code=None,
 ):
-    """출발지 주변에서 목적지까지 순방향으로 운행하는 직통 노선을 찾습니다."""
-    provider_discovery_unavailable = False
-    try:
-        destination_provider_city_codes = _destination_provider_city_codes(
-            destination
-        )
-    except BusServiceError:
-        destination_provider_city_codes = ()
-        provider_discovery_unavailable = True
+    """주변 정류장에서 목적지로 갈 수 있는 버스를 검색합니다."""
+    destination = destination.strip().lower()
 
-    collected = _collect_nearby_route_candidates(
+    nearby_stops = get_nearby_stops(
         latitude,
         longitude,
-        origin_stop_id,
-        origin_city_code,
-        False,
-        destination_provider_city_codes,
     )
-    candidates = list(collected["candidates"].values())
-    results = []
-    unavailable_route_count = 0
-    incomplete_result_count = 0
 
-    if candidates:
-        worker_count = min(BUS_SEARCH_WORKERS, len(candidates))
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = {
-                executor.submit(
-                    _search_route_candidate,
-                    candidate,
-                    destination,
-                ): candidate
-                for candidate in candidates
-            }
-            for future in as_completed(futures):
-                try:
-                    result, incomplete = future.result()
-                except BusServiceError:
-                    unavailable_route_count += 1
-                    continue
-                if result is not None:
-                    results.append(result)
-                    if incomplete:
-                        incomplete_result_count += 1
-                elif incomplete:
-                    unavailable_route_count += 1
+    if not nearby_stops:
+        return {
+            "stop": None,
+            "buses": [],
+        }
 
-    unavailable_arrival_stop_count = _attach_search_arrivals(results)
+    search_stops = nearby_stops[:SEARCH_STOP_LIMIT]
 
-    results.sort(key=lambda route: (
-        route["boarding_stop"]["distance_m"],
-        route["stops_between"] is None,
-        route["stops_between"] or 0,
-        route["arrival_minutes"] is None,
-        route["arrival_minutes"] or 0,
-        route["bus_number"],
-    ))
-    partial = bool(
-        collected["unavailable_stop_count"]
-        or collected["unavailable_provider_count"]
-        or unavailable_route_count
-        or incomplete_result_count
-        or unavailable_arrival_stop_count
-        or provider_discovery_unavailable
-    )
-    return {
-        "destination": destination,
-        "origin_stops": collected["origin_stops"],
-        "routes": results,
-        "origin_stop_count": len(collected["origin_stops"]),
-        "searched_route_count": len(candidates),
-        "route_count": len(results),
-        "arrival_information_unavailable": bool(results) and (
-            unavailable_arrival_stop_count
-            == len({
-                (
-                    route["city_code"],
-                    route["boarding_stop"]["id"],
+    # 같은 노선의 전체 정류장을 반복 요청하지 않도록
+    # 이번 검색 요청 안에서 캐시합니다.
+    route_stops_cache = {}
+
+    for stop in search_stops:
+        city_code = stop["city_code"]
+        stop_id = stop["id"]
+
+        routes = get_stop_routes(
+            city_code,
+            stop_id,
+        )
+
+        if not routes:
+            continue
+
+        matched_routes = []
+
+        for route in routes:
+            route_id = route["route_id"]
+
+            # 이미 조회했던 노선이면 공공데이터 API를 다시 호출하지 않습니다.
+            if route_id in route_stops_cache:
+                route_stops = route_stops_cache[route_id]
+            else:
+                route_stops = get_route_stops(
+                    city_code,
+                    route_id,
                 )
-                for route in results
+
+                route_stops_cache[route_id] = route_stops
+
+            # 현재 정류장의 순번 확인
+            current_stop = next(
+                (
+                    route_stop
+                    for route_stop in route_stops
+                    if route_stop["id"] == stop_id
+                ),
+                None,
+            )
+
+            if current_stop is None:
+                continue
+
+            current_order = current_stop["order"]
+
+            # 현재 정류장보다 뒤에 있는 정류장 중 목적지를 검색
+            matched_stop = next(
+                (
+                    route_stop
+                    for route_stop in route_stops
+                    if (
+                        route_stop["order"] > current_order
+                        and destination
+                        in route_stop["name"].lower()
+                    )
+                ),
+                None,
+            )
+
+            if matched_stop is None:
+                continue
+
+            matched_routes.append({
+                "route": route,
+                "matched_stop": matched_stop,
             })
-        ),
-        "partial": partial,
-        "provider_discovery_unavailable": provider_discovery_unavailable,
-        "destination_provider_city_codes": list(
-            destination_provider_city_codes
-        ),
-        "unavailable_stop_count": collected["unavailable_stop_count"],
-        "unavailable_provider_count": collected["unavailable_provider_count"],
-        "unavailable_route_count": unavailable_route_count,
-        "incomplete_result_count": incomplete_result_count,
-        "unavailable_arrival_stop_count": unavailable_arrival_stop_count,
+
+        # 이 정류장에서 목적지로 가는 노선을 찾은 경우에만
+        # 실시간 도착정보를 한 번 조회합니다.
+        if matched_routes:
+            arrivals = get_bus_arrivals(
+                city_code,
+                stop_id,
+            )
+
+            arrival_by_route_id = {
+                arrival["route_id"]: arrival
+                for arrival in arrivals
+            }
+
+            buses = []
+
+            for matched in matched_routes:
+                route = matched["route"]
+                matched_stop = matched["matched_stop"]
+
+                arrival = arrival_by_route_id.get(
+                    route["route_id"]
+                )
+
+                buses.append({
+                    "route_id": route["route_id"],
+                    "bus_number": route["bus_number"],
+                    "route_type": route.get("route_type"),
+                    "start_stop": route.get("start_stop"),
+                    "end_stop": route.get("end_stop"),
+                    "matched_stop": matched_stop["name"],
+                    "remaining_stops": (
+                        arrival["remaining_stops"]
+                        if arrival is not None
+                        else None
+                    ),
+                    "arrival_minutes": (
+                        arrival["arrival_minutes"]
+                        if arrival is not None
+                        else None
+                    ),
+                })
+
+            return {
+                "stop": stop,
+                "buses": buses,
+            }
+
+    return {
+        "stop": None,
+        "buses": [],
     }
+
