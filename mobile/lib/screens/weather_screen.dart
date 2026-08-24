@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/selected_location_service.dart';
 import '../services/tts_service.dart';
 
 /// 날씨 화면
@@ -41,19 +42,15 @@ class _WeatherScreenState extends State<WeatherScreen> {
     });
 
     try {
+      final location = await SelectedLocationService.instance.getLocation();
+      final grid = SelectedLocationService.instance.weatherGrid(location);
       final json = await ApiService.instance.getWeather(
         _selectedDate,
+        nx: grid.nx,
+        ny: grid.ny,
       );
-
-      final weather = _WeatherData.fromJson(json);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _weather = weather;
-      });
+      if (!mounted) return;
+      setState(() => _weather = _WeatherData.fromJson(json));
     } on ApiException catch (error) {
       if (!mounted) {
         return;

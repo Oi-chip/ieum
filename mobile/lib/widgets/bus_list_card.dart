@@ -6,12 +6,18 @@ class BusListCard extends StatelessWidget {
   final BusData bus;
   final VoidCallback onTap;
   final VoidCallback? onFavoriteTap;
+  final String? boardingStopName;
+  final int? boardingStopDistanceM;
+  final bool showRouteIdentifier;
 
   const BusListCard({
     super.key,
     required this.bus,
     required this.onTap,
     this.onFavoriteTap,
+    this.boardingStopName,
+    this.boardingStopDistanceM,
+    this.showRouteIdentifier = false,
   });
 
   @override
@@ -19,9 +25,7 @@ class BusListCard extends StatelessWidget {
     return Card(
       elevation: 2,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
@@ -46,9 +50,7 @@ class BusListCard extends StatelessWidget {
                   IconButton(
                     onPressed: onFavoriteTap,
                     icon: Icon(
-                      bus.isFavorite
-                          ? Icons.star
-                          : Icons.star_border,
+                      bus.isFavorite ? Icons.star : Icons.star_border,
                       size: 34,
                     ),
                     tooltip: '즐겨찾기',
@@ -61,10 +63,23 @@ class BusListCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   bus.routeType!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.black54,
-                  ),
+                  style: const TextStyle(fontSize: 16, color: Colors.black54),
+                ),
+              ],
+
+              if (bus.apiBusNumber != bus.busNumber) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '공공데이터 등록 번호 ${bus.apiBusNumber}',
+                  style: const TextStyle(fontSize: 15, color: Colors.black54),
+                ),
+              ],
+
+              if (showRouteIdentifier) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '세부 노선 ${_routeIdentifier()}',
+                  style: const TextStyle(fontSize: 15, color: Colors.black54),
                 ),
               ],
 
@@ -73,10 +88,7 @@ class BusListCard extends StatelessWidget {
               // 버스 노선 간략 정보
               Row(
                 children: [
-                  const Icon(
-                    Icons.route,
-                    size: 22,
-                  ),
+                  const Icon(Icons.route, size: 22),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -90,25 +102,56 @@ class BusListCard extends StatelessWidget {
                 ],
               ),
 
+              if (boardingStopName != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.directions_bus_filled_outlined, size: 21),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '승차 정류장 : $boardingStopName'
+                        '${boardingStopDistanceM == null ? '' : ' · ${_distanceText(boardingStopDistanceM!)}'}',
+                        style: const TextStyle(fontSize: 17),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
               // 검색 결과일 경우 실제 일치한 정류장 표시
               if (bus.matchedStop != null) ...[
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 21,
-                    ),
+                    const Icon(Icons.location_on_outlined, size: 21),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '검색된 목적지 : ${bus.matchedStop}',
-                        style: const TextStyle(
-                          fontSize: 17,
-                        ),
+                        '도착 정류장 : ${bus.matchedStop}',
+                        style: const TextStyle(fontSize: 17),
                       ),
                     ),
                   ],
+                ),
+              ],
+
+              if (bus.stopsBetween != null || bus.vehicleType != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  [
+                    if (bus.stopsBetween != null) '${bus.stopsBetween}개 정류장 이동',
+                    if (bus.vehicleType != null) bus.vehicleType!,
+                  ].join(' · '),
+                  style: const TextStyle(fontSize: 16, color: Colors.black54),
+                ),
+              ],
+
+              if (!bus.dataComplete) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  '일부 노선 정보는 제공되지 않습니다.',
+                  style: TextStyle(fontSize: 15, color: Colors.deepOrange),
                 ),
               ],
 
@@ -148,6 +191,12 @@ class BusListCard extends StatelessWidget {
     final end = bus.endStop;
 
     if (start != null && end != null) {
+      if (start == end) {
+        if (bus.viaStop != null) {
+          return '$start → ${bus.viaStop} → $end';
+        }
+        return '$start 출발·도착 순환노선';
+      }
       return '$start → $end';
     }
 
@@ -162,13 +211,23 @@ class BusListCard extends StatelessWidget {
     return '노선 정보 없음';
   }
 
+  String _routeIdentifier() {
+    final id = bus.routeId;
+    return id.length <= 3 ? id : id.substring(id.length - 3);
+  }
+
+  String _distanceText(int meters) {
+    if (meters < 1000) return '${meters}m';
+    return '${(meters / 1000).toStringAsFixed(1)}km';
+  }
+
   // 남은 정류장 수 표시
   String _buildRemainingStopsText() {
     if (bus.remainingStops == null) {
       return '남은 정류장 정보 없음';
     }
 
-    return '${bus.remainingStops}개 정류장 전 (임시)';
+    return '${bus.remainingStops}개 정류장 전';
   }
 
   // 도착 예상 시간 표시
@@ -177,6 +236,6 @@ class BusListCard extends StatelessWidget {
       return '도착 정보 없음';
     }
 
-    return '${bus.arrivalMinutes}분 후 도착 (임시)';
+    return '${bus.arrivalMinutes}분 후 도착';
   }
 }

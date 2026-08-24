@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../models/hospital_data.dart';
@@ -5,6 +6,7 @@ import '../services/call_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/sos_menu.dart';
 import '../widgets/voice_button.dart';
+import 'settings_screen.dart';
 
 class HospitalDetailScreen extends StatelessWidget {
   final HospitalData hospital;
@@ -59,6 +61,24 @@ class HospitalDetailScreen extends StatelessWidget {
     Navigator.pop(context);
   }
 
+  // 병원 상세 화면 음성 명령 처리
+  void _handleVoiceCommand(BuildContext context, String text) {
+    final command = text.toLowerCase().replaceAll(' ', '');
+
+    if (command.contains('뒤로') ||
+        command.contains('목록') ||
+        command.contains('나가기')) {
+      _goBackToHospitalList(context);
+    } else if (command.contains('전화')) {
+      _callHospital(context);
+    } else {
+      _showTemporaryMessage(
+        context,
+        "'$text'(으)로 인식했습니다. 전화 또는 목록으로라고 말해 주세요.",
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,9 +92,9 @@ class HospitalDetailScreen extends StatelessWidget {
                 showSosMenu(context);
               },
               onSettingsTap: () {
-                _showTemporaryMessage(
+                Navigator.push(
                   context,
-                  '설정 화면은 B팀과 연계 예정입니다. (임시)',
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 );
               },
             ),
@@ -143,15 +163,19 @@ class HospitalDetailScreen extends StatelessWidget {
               Icon(
                 Icons.circle,
                 size: 18,
-                color: hospital.isOpen
-                    ? Colors.green
-                    : Colors.red,
+                color: hospital.isOpen == null
+                    ? Colors.orange
+                    : hospital.isOpen!
+                        ? Colors.green
+                        : Colors.red,
               ),
               const SizedBox(width: 6),
               Text(
-                hospital.isOpen
-                    ? '진료 중'
-                    : '진료 종료',
+                hospital.isOpen == null
+                    ? '전화 확인 필요'
+                    : hospital.isOpen!
+                        ? '진료 중'
+                        : '진료 종료',
                 style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.bold,
@@ -203,7 +227,7 @@ class HospitalDetailScreen extends StatelessWidget {
             icon: Icons.directions_walk,
             title: '거리',
             value:
-                '${hospital.distanceKm.toStringAsFixed(1)}km (임시)',
+                '${hospital.distanceKm.toStringAsFixed(1)}km',
           ),
         ],
       ),
@@ -346,12 +370,7 @@ class HospitalDetailScreen extends StatelessWidget {
       ),
       color: const Color(0xFFF8FAFC),
       child: VoiceButton(
-        onTap: () {
-          _showTemporaryMessage(
-            context,
-            '음성 인식 기능은 추후 연결합니다. (임시)',
-          );
-        },
+        onResult: (text) => _handleVoiceCommand(context, text),
       ),
     );
   }

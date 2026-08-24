@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../mock_data/home_mock_data.dart';
-import '../mock_data/bus_mock_data.dart';
 import '../models/bus_data.dart';
+import '../models/gps_location.dart';
 import '../models/home_data.dart';
+import '../services/api_service.dart';
 import '../services/favorite_bus_service.dart';
+import '../services/selected_location_service.dart';
 
 import '../widgets/app_top_bar.dart';
 import '../widgets/home_bus_card.dart';
@@ -20,7 +22,6 @@ import 'news_screen.dart';
 import 'settings_screen.dart';
 import 'weather_screen.dart';
 
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -30,89 +31,181 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const Color _backgroundColor = Color(0xFFF8FAFC);
+  static const BusSummary _emptyHomeBus = BusSummary(
+    stopName: '주변 정류장',
+    busNumber: '-',
+    route: '현재 확인된 운행 버스가 없습니다.',
+    arrivalTime: '버스 목록에서 다시 확인해 주세요.',
+  );
 
-  BusSummary _homeBus = mockBus;
+  BusSummary? _homeBus = const BusSummary(
+    stopName: '정류장 확인 중',
+    busNumber: '-',
+    route: '노선 정보를 불러오는 중입니다.',
+    arrivalTime: '도착 정보 확인 중',
+  );
+  HospitalSummary _homeHospital = const HospitalSummary(
+    hospitalName: '가까운 병원 확인 중',
+    distance: '-',
+  );
+  WeatherSummary _homeWeather = const WeatherSummary(
+    temperature: '-',
+    condition: '날씨 확인 중',
+  );
+  String _locationName = '현재 위치 확인 중';
+  int _homeLoadRequestId = 0;
 
   @override
   void initState() {
     super.initState();
 
-    _loadHomeBus();
+    _loadHomeData();
+  }
+
+  Future<void> _loadHomeData() async {
+    final requestId = ++_homeLoadRequestId;
+    try {
+      final location = await SelectedLocationService.instance.getLocation(
+        requireRegion: true,
+      );
+      final grid = SelectedLocationService.instance.weatherGrid(location);
+      if (!mounted || requestId != _homeLoadRequestId) return;
+      setState(() => _locationName = location.displayName);
+
+      final errors = <Object>[];
+      await Future.wait<void>([
+        _loadBusSection(location, requestId, errors),
+        _loadHospitalSection(location, requestId, errors),
+        _loadWeatherSection(location, grid, requestId, errors),
+      ]);
+
+      if (!mounted || requestId != _homeLoadRequestId || errors.isEmpty) return;
+      _showTemporaryMessage(context, errors.first.toString());
+    } catch (error) {
+      if (mounted && requestId == _homeLoadRequestId) {
+        setState(() => _homeBus = null);
+        _showTemporaryMessage(context, error.toString());
+      }
+    }
+  }
+
+  Future<void> _loadBusSection(
+    GpsLocation location,
+    int requestId,
+    List<Object> errors,
+  ) async {
+    try {
+      final overview = await ApiService.instance.getBusOverview(location);
+      final homeBus = overview.stops.isNotEmpty
+          ? await _buildHomeBus(overview.stops.first, overview.routes)
+          : null;
+      if (!mounted || requestId != _homeLoadRequestId) return;
+      setState(() => _homeBus = homeBus);
+    } catch (error) {
+      if (!mounted || requestId != _homeLoadRequestId) return;
+      errors.add(error);
+      setState(() => _homeBus = null);
+    }
+  }
+
+  Future<void> _loadHospitalSection(
+    GpsLocation location,
+    int requestId,
+    List<Object> errors,
+  ) async {
+    try {
+      final hospitals = await ApiService.instance.getNearbyHospitals(location);
+      if (!mounted || requestId != _homeLoadRequestId) return;
+      setState(() {
+        if (hospitals.isEmpty) {
+          _homeHospital = const HospitalSummary(
+            hospitalName: '주변 병원 없음',
+            distance: '-',
+          );
+          return;
+        }
+        final hospital = hospitals.first;
+        _homeHospital = HospitalSummary(
+          hospitalName: hospital.hospitalName,
+          distance: '${hospital.distanceKm.toStringAsFixed(1)}km',
+        );
+      });
+    } catch (error) {
+      if (mounted && requestId == _homeLoadRequestId) errors.add(error);
+    }
+  }
+
+  Future<void> _loadWeatherSection(
+    GpsLocation location,
+    WeatherGrid grid,
+    int requestId,
+    List<Object> errors,
+  ) async {
+    try {
+      final weather = await ApiService.instance.getWeather(
+        DateTime.now(),
+        nx: grid.nx,
+        ny: grid.ny,
+      );
+      final current = weather['current'] as Map<String, dynamic>? ?? {};
+      if (!mounted || requestId != _homeLoadRequestId) return;
+      setState(() {
+        _homeWeather = WeatherSummary(
+          temperature:
+              '${(current['temperature_c'] as num?)?.round() ?? '-'}°C',
+          condition: current['condition']?.toString() ?? '정보 없음',
+        );
+      });
+    } catch (error) {
+      if (mounted && requestId == _homeLoadRequestId) errors.add(error);
+    }
   }
 
   // 저장된 즐겨찾기를 반영해 메인화면에 표시할 버스 선택
   Future<void> _loadHomeBus() async {
-    final favoriteRouteIds =
-        await FavoriteBusService.getFavoriteRouteIds();
-
-    final candidates = <BusData>[];
-
-    for (final buses in mockBusListByStop.values) {
-      candidates.addAll(buses);
-    }
-
-    if (candidates.isEmpty) {
-      return;
-    }
-
-    candidates.sort((a, b) {
-      final aFavorite =
-          favoriteRouteIds.contains(a.routeId);
-      final bFavorite =
-          favoriteRouteIds.contains(b.routeId);
-
-      // 즐겨찾기 버스를 우선 표시
-      if (aFavorite != bFavorite) {
-        return aFavorite ? -1 : 1;
-      }
-
-      // 같은 조건에서는 도착시간이 빠른 버스를 우선 표시
-      final aArrival =
-          a.arrivalMinutes ?? 999999;
-      final bArrival =
-          b.arrivalMinutes ?? 999999;
-
-      return aArrival.compareTo(bArrival);
-    });
-
-    final selectedBus = candidates.first;
-    final selectedStopName =
-        _findStopNameForBus(selectedBus);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _homeBus = BusSummary(
-        stopName: selectedStopName,
-        busNumber: selectedBus.busNumber,
-        route: _buildHomeRouteText(selectedBus),
-        arrivalTime:
-            _buildHomeArrivalText(selectedBus),
-      );
-    });
+    await _loadHomeData();
   }
 
-  // 선택한 버스가 어느 정류장에서 출발하는지 찾기
-  String _findStopNameForBus(BusData bus) {
-    for (final entry in mockBusListByStop.entries) {
-      final containsBus = entry.value.any(
-        (item) => item.routeId == bus.routeId,
-      );
+  Future<BusSummary?> _buildHomeBus(
+    BusStopData stop,
+    List<BusData> candidates,
+  ) async {
+    if (candidates.isEmpty) return null;
 
-      if (!containsBus) {
-        continue;
-      }
+    final favoriteRouteKeys = await FavoriteBusService.getFavoriteRouteIds();
+    final sortedCandidates = List<BusData>.of(candidates)
+      ..sort((a, b) {
+        final aFavorite = FavoriteBusService.containsRoute(
+          favoriteRouteKeys,
+          routeKey: a.routeKey,
+          routeId: a.routeId,
+        );
+        final bFavorite = FavoriteBusService.containsRoute(
+          favoriteRouteKeys,
+          routeKey: b.routeKey,
+          routeId: b.routeId,
+        );
 
-      for (final stop in mockNearbyBusStops) {
-        if (stop.stopId == entry.key) {
-          return '정류장 : ${stop.stopName}';
+        // 즐겨찾기 버스를 우선 표시
+        if (aFavorite != bFavorite) {
+          return aFavorite ? -1 : 1;
         }
-      }
-    }
 
-    return '정류장 정보 없음 (임시)';
+        // 같은 조건에서는 도착시간이 빠른 버스를 우선 표시
+        final aArrival = a.arrivalMinutes ?? 999999;
+        final bArrival = b.arrivalMinutes ?? 999999;
+
+        return aArrival.compareTo(bArrival);
+      });
+
+    final selectedBus = sortedCandidates.first;
+    final boardingStop = selectedBus.boardingStop ?? stop;
+    return BusSummary(
+      stopName: '정류장 : ${boardingStop.stopName}',
+      busNumber: selectedBus.busNumber,
+      route: _buildHomeRouteText(selectedBus),
+      arrivalTime: _buildHomeArrivalText(selectedBus),
+    );
   }
 
   // 메인 카드 노선 문구 생성
@@ -121,10 +214,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final end = bus.endStop;
 
     if (start != null && end != null) {
+      if (start == end) {
+        return bus.viaStop == null
+            ? '$start 출발·도착 순환노선'
+            : '$start → ${bus.viaStop} → $end';
+      }
       return '$start → $end';
     }
 
-    return '노선 정보 없음 (임시)';
+    return '노선 정보 없음';
   }
 
   // 메인 카드 도착시간 문구 생성
@@ -133,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return '도착 정보 없음';
     }
 
-    return '${bus.arrivalMinutes}분 후 도착 (임시)';
+    return '${bus.arrivalMinutes}분 후 도착';
   }
 
   // 임시 안내 메시지
@@ -145,9 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // 버스 화면 이동
-  Future<void> _goToBusScreen(
-    BuildContext context,
-  ) async {
+  Future<void> _goToBusScreen(BuildContext context) async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const BusScreen()),
@@ -172,11 +268,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _goToSettingsScreen(BuildContext context) {
-    Navigator.push(
+  Future<void> _goToSettingsScreen(BuildContext context) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
+    if (mounted) await _loadHomeData();
   }
 
   void _goToNewsScreen(BuildContext context) {
@@ -186,41 +283,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ==========================================
-  // SOS 선택창
-  // ==========================================
-  void _showSosMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (bottomSheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '긴급 도움',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
+  // 메인 화면 음성 명령 처리
+  void _handleVoiceCommand(BuildContext context, String text) {
+    final command = text.toLowerCase().replaceAll(' ', '');
 
-                const SizedBox(height: 8),
-
-                const Text(
-                  '필요한 도움을 선택해 주세요.',
-                  style: TextStyle(fontSize: 18, color: Colors.black54),
-                ),
-
-                const SizedBox(height: 24),
-
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    if (command.contains('긴급') ||
+        command.contains('도와줘') ||
+        command.contains('에스오에스')) {
+      showSosMenu(context);
+    } else if (command.contains('버스')) {
+      _goToBusScreen(context);
+    } else if (command.contains('병원') || command.contains('의원')) {
+      _goToHospitalScreen(context);
+    } else if (command.contains('날씨') || command.contains('기온')) {
+      _goToWeatherScreen(context);
+    } else if (command.contains('소식') ||
+        command.contains('뉴스') ||
+        command.contains('공지')) {
+      _goToNewsScreen(context);
+    } else if (command.contains('설정')) {
+      _goToSettingsScreen(context);
+    } else {
+      _showTemporaryMessage(
+        context,
+        "'$text'(으)로 인식했습니다. 버스, 병원, 날씨, 지역 소식 또는 설정이라고 말해 주세요.",
+      );
+    }
   }
 
   // ==========================================
@@ -238,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             Expanded(
               child: Text(
-                '현재 위치 : ${mockLocation.locationName}',
+                '현재 위치 : $_locationName',
                 style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w600,
@@ -264,7 +352,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // 버스 카드
           HomeBusCard(
-            bus: _homeBus,
+            bus: _homeBus ?? _emptyHomeBus,
             onTap: () {
               _goToBusScreen(context);
             },
@@ -275,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // 병원 카드
           // SOS 버튼은 카드 내부에서 제거됨
           HomeHospitalCard(
-            hospital: mockHospital,
+            hospital: _homeHospital,
             onTap: () {
               _goToHospitalScreen(context);
             },
@@ -285,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // 날씨 카드
           HomeWeatherCard(
-            weather: mockWeather,
+            weather: _homeWeather,
             onTap: () => _goToWeatherScreen(context),
           ),
 
@@ -315,7 +403,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // SOS / 이음 / 설정
             // ==========================================
             AppTopBar(
-              title : '이음',
+              title: '이음',
               onSosTap: () {
                 showSosMenu(context);
               },
@@ -334,9 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               decoration: const BoxDecoration(color: _backgroundColor),
               child: VoiceButton(
-                onTap: () {
-                  _showTemporaryMessage(context, '음성 인식 기능은 추후 연결합니다. (임시)');
-                },
+                onResult: (text) => _handleVoiceCommand(context, text),
               ),
             ),
           ],

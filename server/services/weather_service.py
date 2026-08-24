@@ -37,6 +37,14 @@ def _latest_base_datetime(now=None):
     return datetime.combine(available.date() - timedelta(days=1), time(23), tzinfo=KST)
 
 
+def _base_datetime_for_target(current, target_date):
+    base = _latest_base_datetime(current)
+    # 23시 발표본은 다음 날 0시부터 시작하므로 오늘 화면에는 직전 발표본을 쓴다.
+    if base.date() == target_date and base.hour == 23:
+        return base - timedelta(hours=3)
+    return base
+
+
 def _response_items(payload):
     try:
         response = payload["response"]
@@ -73,7 +81,7 @@ def get_weather_forecast(nx, ny, forecast_date=None, now=None):
         raise WeatherConfigurationError("data_go_API_KEY가 설정되지 않았습니다.")
     current = (now or datetime.now(KST)).astimezone(KST)
     target_date = forecast_date or current.date()
-    base = _latest_base_datetime(current)
+    base = _base_datetime_for_target(current, target_date)
     params = {
         "serviceKey": DATA_GO_API_KEY, "pageNo": 1, "numOfRows": 1000,
         "dataType": "JSON", "base_date": base.strftime("%Y%m%d"),

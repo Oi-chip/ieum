@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../mock_data/bus_mock_data.dart';
 import '../models/bus_data.dart';
+import '../models/gps_location.dart';
+import '../services/api_service.dart';
 import '../services/favorite_bus_service.dart';
+import '../services/selected_location_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/bus_list_card.dart';
 import '../widgets/voice_button.dart';
 import 'bus_detail_screen.dart';
+import 'settings_screen.dart';
 
 import '../widgets/sos_menu.dart';
 import '../services/api_service.dart';
@@ -22,38 +25,76 @@ class _BusScreenState extends State<BusScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  // GPS 연결 전 사용하는 봉화 테스트 좌표
-  static const double _testLatitude = 36.8931;
-  static const double _testLongitude = 128.7325;
-
   List<BusData> _displayedBusList = [];
+  List<BusData> _allBusList = [];
+  List<BusData> _searchResults = [];
   List<BusStopData> _nearbyStops = [];
+  GpsLocation? _location;
+  bool _arrivalInformationUnavailable = false;
+  bool _overviewArrivalInformationUnavailable = false;
+  bool _overviewPartial = false;
 
   BusStopData? _selectedStop;
 
-  Set<String> _favoriteRouteIds = {};
+  Set<String> _favoriteRouteKeys = {};
+  final Set<String> _favoriteUpdatesInProgress = {};
 
   bool _isSearching = false;
   bool _isRefreshing = false;
-  bool _wasStopAutomaticallyChanged = false;
-  bool _isLoading = true;
+  bool _isSearchLoading = false;
+  bool _favoritesOnly = false;
   String? _errorMessage;
+  String? _dataWarning;
+  int _loadRequestId = 0;
+  int _searchRequestId = 0;
 
   @override
   void initState() {
     super.initState();
-
     _loadFavorites();
-    _loadBusData();
+    _loadNearbyStops();
   }
 
-  // 실제 서버에서 가까운 정류장과 버스 도착정보 불러오기
-Future<void> _loadBusData() async {
-  if (mounted) {
+  Future<void> _loadNearbyStops() async {
+    final requestId = ++_loadRequestId;
+    ++_searchRequestId;
     setState(() {
-      _isLoading = true;
+      _isRefreshing = true;
+      _isSearchLoading = false;
       _errorMessage = null;
     });
+    try {
+      final location = await SelectedLocationService.instance.getLocation();
+      final overview = await ApiService.instance.getBusOverview(location);
+      if (overview.stops.isEmpty) {
+        throw const ApiException('주변 버스정류장을 찾지 못했습니다.');
+      }
+      if (!mounted || requestId != _loadRequestId) return;
+      setState(() {
+        _location = location;
+        _nearbyStops = overview.stops;
+        _selectedStop = null;
+        _allBusList = overview.routes;
+        _displayedBusList = _sortAndFilter(overview.routes);
+        _searchResults = [];
+        _isSearching = false;
+        _isRefreshing = false;
+        _arrivalInformationUnavailable = overview.arrivalInformationUnavailable;
+        _overviewArrivalInformationUnavailable =
+            overview.arrivalInformationUnavailable;
+        _overviewPartial = overview.partial;
+        _dataWarning = overview.partial
+            ? '일부 제공기관 응답이 없어 확인된 노선만 표시합니다.'
+            : null;
+      });
+    } catch (error) {
+      if (!mounted || requestId != _loadRequestId) return;
+      setState(() {
+        _isRefreshing = false;
+        _errorMessage = error.toString();
+      });
+      _showTemporaryMessage(error.toString());
+    }
   }
 
   try {
@@ -134,19 +175,19 @@ Future<void> _loadBusData() async {
 
   // 휴대폰에 저장된 버스 즐겨찾기 불러오기
   Future<void> _loadFavorites() async {
-    final favoriteRouteIds =
-        await FavoriteBusService.getFavoriteRouteIds();
+    final favoriteRouteKeys = await FavoriteBusService.getFavoriteRouteIds();
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _favoriteRouteIds = favoriteRouteIds;
+      _favoriteRouteKeys = favoriteRouteKeys;
+      _displayedBusList = _sortAndFilter(
+        _isSearching ? _searchResults : _allBusList,
+      );
     });
   }
-
-  
 
   @override
   void dispose() {
@@ -155,86 +196,11 @@ Future<void> _loadBusData() async {
     super.dispose();
   }
 
-  // 아직 구현되지 않은 기능의 임시 안내 메시지
+  // 조회나 입력 오류를 화면 하단에 안내합니다.
   void _showTemporaryMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
-  }
-
-  // 목적지 검색으로 정류장이 변경되었을 때 안내
-  Future<void> _showStopChangedMessage() async {
-    final selectedStop = _selectedStop;
-
-    if (selectedStop == null) {
-      return;
-    }
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return PopScope(
-          canPop: false,
-          child: AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            titlePadding: const EdgeInsets.fromLTRB(24, 16, 12, 0),
-            title: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    '주의',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
-                  icon: const Icon(
-                    Icons.close,
-                    size: 30,
-                  ),
-                  tooltip: '닫기',
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.warning_amber_rounded,
-                  size: 70,
-                  color: Colors.orange,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '정류장이\n'
-                  '${selectedStop.stopName} (으)로\n'
-                  '변경되었습니다.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-    if (mounted) {
-      _searchFocusNode.unfocus();
-    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // 버스 정보 새로고침
@@ -242,136 +208,96 @@ Future<void> _loadBusData() async {
     if (_isRefreshing) {
       return;
     }
-
-    setState(() {
-      _isRefreshing = true;
-    });
-
-    try {
-      await _loadBusData();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isSearching = false;
-        _searchController.clear();
-      });
-
-      _showTemporaryMessage(
-        '버스 정보를 새로고침했습니다.',
-      );
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showTemporaryMessage(
-        error.message,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isRefreshing = false;
-        });
-      }
-    }
+    await _loadNearbyStops();
   }
 
   // 목적지 검색
   Future<void> _searchDestination() async {
     FocusScope.of(context).unfocus();
+    if (_isSearchLoading) return;
 
     final destination = _searchController.text.trim();
+    final location = _location;
 
     if (destination.isEmpty) {
-      _showTemporaryMessage(
-        '도착지역을 입력해 주세요.',
-      );
+      _showTemporaryMessage('도착지역을 입력해 주세요.');
+      return;
+    }
+    if (location == null) {
+      _showTemporaryMessage('출발 위치를 확인하고 있습니다.');
       return;
     }
 
-    final previousStopId = _selectedStop?.stopId;
-
+    final requestId = ++_searchRequestId;
     setState(() {
-      _isLoading = true;
+      _isSearchLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final searchData = await ApiService.instance.searchBuses(
-        latitude: _testLatitude,
-        longitude: _testLongitude,
-        destination: destination,
+      final result = await ApiService.instance.searchBusRoutes(
+        location,
+        destination,
+        originStop: _selectedStop,
       );
-
-      final stopJson = searchData['stop'];
-      final busesJson = searchData['buses'];
-
-      BusStopData? matchedStop;
-
-      if (stopJson is Map<String, dynamic>) {
-        matchedStop = BusStopData.fromJson(stopJson);
-      }
-
-      final matchedBuses = busesJson is List
-          ? busesJson
-              .whereType<Map<String, dynamic>>()
-              .map(BusData.fromJson)
-              .toList()
-          : <BusData>[];
-
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted || requestId != _searchRequestId) return;
       setState(() {
         _isSearching = true;
-        _displayedBusList = matchedBuses;
-        _isLoading = false;
-
-        if (matchedStop != null) {
-          _wasStopAutomaticallyChanged =
-              previousStopId != null &&
-              matchedStop.stopId != previousStopId;
-
-          _selectedStop = matchedStop;
-        } else {
-          _wasStopAutomaticallyChanged = false;
-        }
+        _isSearchLoading = false;
+        _searchResults = result.routes;
+        _displayedBusList = _sortAndFilter(result.routes);
+        _arrivalInformationUnavailable = result.arrivalInformationUnavailable;
+        _dataWarning = _searchWarning(result);
       });
-
-      if (_wasStopAutomaticallyChanged) {
-        await _showStopChangedMessage();
-      }
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
+    } catch (error) {
+      if (!mounted || requestId != _searchRequestId) return;
       setState(() {
-        _isLoading = false;
-        _errorMessage = error.message;
+        _isSearchLoading = false;
+        _errorMessage = error.toString();
       });
-
-      _showTemporaryMessage(
-        error.message,
-      );
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isLoading = false;
-        _errorMessage = '버스를 검색하는 중 오류가 발생했습니다.';
-      });
+      _showTemporaryMessage(error.toString());
     }
   }
 
+  String? _searchWarning(BusSearchData result) {
+    if (!result.partial) return null;
+    if (result.providerDiscoveryUnavailable) {
+      return '목적지 지역 코드를 확인하지 못해 현재 확인 가능한 공급기관 노선만 표시합니다.';
+    }
+    if (result.unavailableStopCount > 0 ||
+        result.unavailableProviderCount > 0 ||
+        result.unavailableRouteCount > 0 ||
+        result.incompleteResultCount > 0) {
+      return '일부 제공기관 응답이 없어 확인 가능한 노선만 표시합니다.';
+    }
+    return '일부 실시간 도착정보를 받지 못했지만 확인된 노선은 모두 표시합니다.';
+  }
+
+  List<BusData> _sortAndFilter(List<BusData> source) {
+    final buses = source
+        .where((bus) => !_favoritesOnly || _isFavorite(bus))
+        .toList();
+    buses.sort((a, b) {
+      final favoriteCompare = (_isFavorite(b) ? 1 : 0).compareTo(
+        _isFavorite(a) ? 1 : 0,
+      );
+      if (favoriteCompare != 0) return favoriteCompare;
+      return (a.arrivalMinutes ?? 999999).compareTo(b.arrivalMinutes ?? 999999);
+    });
+    return buses;
+  }
+
+  bool _isFavorite(BusData bus) {
+    return FavoriteBusService.containsRoute(
+      _favoriteRouteKeys,
+      routeKey: bus.routeKey,
+      routeId: bus.routeId,
+    );
+  }
+
   // 검색 초기화
-  Future<void> _clearSearch() async {
+  void _clearSearch() {
+    ++_searchRequestId;
     _searchController.clear();
 
     final selectedStop = _selectedStop;
@@ -386,65 +312,60 @@ Future<void> _loadBusData() async {
 
     setState(() {
       _isSearching = false;
-      _isLoading = true;
-      _errorMessage = null;
+      _isSearchLoading = false;
+      _searchResults = [];
+      _displayedBusList = _sortAndFilter(_allBusList);
+      _arrivalInformationUnavailable = _overviewArrivalInformationUnavailable;
+      _dataWarning = _overviewPartial ? '일부 제공기관 응답이 없어 확인된 노선만 표시합니다.' : null;
     });
+  }
 
-    try {
-      final arrivalsData =
-          await ApiService.instance.getBusArrivals(
-        cityCode: selectedStop.cityCode,
-        stopId: selectedStop.stopId,
-      );
+  // 버스 화면 음성 명령 처리
+  void _handleVoiceCommand(String text) {
+    final command = text.toLowerCase().replaceAll(' ', '');
 
-      final arrivalsJson = arrivalsData['arrivals'];
-
-      final buses = arrivalsJson is List
-          ? arrivalsJson
-              .whereType<Map<String, dynamic>>()
-              .map(BusData.fromJson)
-              .toList()
-          : <BusData>[];
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _displayedBusList = buses;
-        _isLoading = false;
-      });
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isLoading = false;
-        _errorMessage = error.message;
-      });
+    if (command.contains('뒤로') ||
+        command.contains('홈') ||
+        command.contains('나가기')) {
+      Navigator.pop(context);
+      return;
     }
+
+    if (command.contains('새로고침') || command.contains('갱신')) {
+      _refreshBusData();
+      return;
+    }
+
+    final destination = text
+        .replaceAll(
+          RegExp(r'(버스|도착\s*지역|목적지|가는|가려는|검색해\s*줘|검색|찾아\s*줘|알려\s*줘|보여\s*줘)'),
+          ' ',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    if (destination.isEmpty) {
+      _showTemporaryMessage('찾을 목적지를 말해 주세요.');
+      return;
+    }
+
+    _searchController.text = destination;
+    _searchDestination();
   }
 
   // 버스 카드 선택
   Future<void> _openBusDetail(BusData bus) async {
-    final selectedStop = _selectedStop;
-    if (selectedStop == null) {
-      _showTemporaryMessage(
-        '정류장 정보를 불러오지 못했습니다.',
-      );
+    final boardingStop = bus.boardingStop ?? _selectedStop;
+    if (boardingStop == null) {
+      _showTemporaryMessage('승차 정류장 정보를 확인할 수 없습니다.');
       return;
     }
     final updatedBus = await Navigator.push<BusData>(
       context,
       MaterialPageRoute(
         builder: (context) => BusDetailScreen(
-          bus: bus.copyWith(
-            isFavorite: _favoriteRouteIds.contains(
-              bus.routeId,
-            ),
-          ),
-          nearbyStop: selectedStop,
+          stop: boardingStop,
+          bus: bus.copyWith(isFavorite: _isFavorite(bus)),
         ),
       ),
     );
@@ -459,37 +380,56 @@ Future<void> _loadBusData() async {
 
     setState(() {
       if (updatedBus.isFavorite) {
-        _favoriteRouteIds.add(updatedBus.routeId);
+        _favoriteRouteKeys
+          ..remove(updatedBus.routeId)
+          ..add(updatedBus.routeKey);
       } else {
-        _favoriteRouteIds.remove(updatedBus.routeId);
+        _favoriteRouteKeys
+          ..remove(updatedBus.routeId)
+          ..remove(updatedBus.routeKey);
       }
 
-      _displayedBusList = _displayedBusList.map((item) {
-        if (item.routeId == updatedBus.routeId) {
-          return updatedBus;
-        }
-
-        return item;
-      }).toList();
+      _displayedBusList = _sortAndFilter(
+        _isSearching ? _searchResults : _allBusList,
+      );
     });
   }
 
   // 버스 즐겨찾기 추가/해제
   Future<void> _toggleFavorite(BusData bus) async {
-    final isFavorite =
-        await FavoriteBusService.toggleFavorite(bus.routeId);
+    if (!_favoriteUpdatesInProgress.add(bus.routeKey)) return;
+    setState(() {});
 
-    if (!mounted) {
-      return;
-    }
+    try {
+      final isFavorite = await FavoriteBusService.toggleFavorite(
+        bus.routeKey,
+        legacyRouteId: bus.routeId,
+      );
 
-    setState(() {
-      if (isFavorite) {
-        _favoriteRouteIds.add(bus.routeId);
+      if (!mounted) return;
+      setState(() {
+        if (isFavorite) {
+          _favoriteRouteKeys
+            ..remove(bus.routeId)
+            ..add(bus.routeKey);
+        } else {
+          _favoriteRouteKeys
+            ..remove(bus.routeId)
+            ..remove(bus.routeKey);
+        }
+        _displayedBusList = _sortAndFilter(
+          _isSearching ? _searchResults : _allBusList,
+        );
+      });
+    } catch (error) {
+      if (mounted) _showTemporaryMessage(error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _favoriteUpdatesInProgress.remove(bus.routeKey));
       } else {
-        _favoriteRouteIds.remove(bus.routeId);
+        _favoriteUpdatesInProgress.remove(bus.routeKey);
       }
-    });
+    }
   }
 
   // 주변 정류장 선택창
@@ -506,72 +446,75 @@ Future<void> _loadBusData() async {
       isScrollControlled: true,
       builder: (bottomSheetContext) {
         return SafeArea(
-          child: FractionallySizedBox(
-            heightFactor: 0.75,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const Text(
-                    '다른 정류장 선택',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '검색 출발 정류장',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
 
                   const SizedBox(height: 8),
 
-                  const Text(
-                    '이용할 정류장을 선택해 주세요.',
-                    style: TextStyle(
-                      fontSize: 17,
-                      color: Colors.black54,
-                    ),
-                  ),
+                const Text(
+                  '전체 주변 정류장 또는 한 정류장을 선택해 주세요.',
+                  style: TextStyle(fontSize: 17, color: Colors.black54),
+                ),
 
-                  const SizedBox(height: 18),
+                const SizedBox(height: 18),
 
-                  Expanded(
-                    child: ListView.separated(
-                      itemCount: _nearbyStops.length,
-                      separatorBuilder: (context, index) {
-                        return const Divider(
-                          height: 1,
-                        );
-                      },
-                      itemBuilder: (context, index) {
-                        final stop = _nearbyStops[index];
-
+                SizedBox(
+                  height: 420,
+                  child: ListView.builder(
+                    itemCount: _nearbyStops.length + 1,
+                    itemBuilder: (_, index) {
+                      if (index == 0) {
                         return ListTile(
                           leading: Icon(
-                            stop.stopId == _selectedStop?.stopId
+                            _selectedStop == null
                                 ? Icons.radio_button_checked
                                 : Icons.radio_button_off,
                           ),
-                          title: Text(
-                            stop.stopName,
-                            style: const TextStyle(
+                          title: const Text(
+                            '주변 정류장 전체',
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          subtitle: Text(
-                            '${stop.distanceM}m',
-                          ),
-                          onTap: () async {
-                            Navigator.pop(
-                              bottomSheetContext,
-                            );
-
-                            await _selectStop(stop);
+                          subtitle: Text('${_nearbyStops.length}개 정류장'),
+                          onTap: () {
+                            _selectOriginStop(null);
+                            Navigator.pop(bottomSheetContext);
                           },
                         );
-                      },
-                    ),
+                      }
+                      final stop = _nearbyStops[index - 1];
+                      return ListTile(
+                        leading: Icon(
+                          stop.stopId == _selectedStop?.stopId
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off,
+                        ),
+                        title: Text(
+                          stop.stopName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(_distanceText(stop.distanceM)),
+                        onTap: () {
+                          _selectOriginStop(stop);
+                          Navigator.pop(bottomSheetContext);
+                        },
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -579,51 +522,18 @@ Future<void> _loadBusData() async {
     );
   }
 
-  Future<void> _selectStop(BusStopData stop) async {
+  void _selectOriginStop(BusStopData? stop) {
+    ++_searchRequestId;
+    _searchController.clear();
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      _selectedStop = stop;
+      _isSearching = false;
+      _isSearchLoading = false;
+      _searchResults = [];
+      _displayedBusList = _sortAndFilter(_allBusList);
+      _arrivalInformationUnavailable = _overviewArrivalInformationUnavailable;
+      _dataWarning = _overviewPartial ? '일부 제공기관 응답이 없어 확인된 노선만 표시합니다.' : null;
     });
-
-    try {
-      final arrivalsData =
-          await ApiService.instance.getBusArrivals(
-        cityCode: stop.cityCode,
-        stopId: stop.stopId,
-      );
-
-      final arrivalsJson = arrivalsData['arrivals'];
-
-      final buses = arrivalsJson is List
-          ? arrivalsJson
-              .whereType<Map<String, dynamic>>()
-              .map(BusData.fromJson)
-              .toList()
-          : <BusData>[];
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _selectedStop = stop;
-        _displayedBusList = buses;
-        _isSearching = false;
-        _searchController.clear();
-        _isLoading = false;
-      });
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isLoading = false;
-        _errorMessage = error.message;
-      });
-
-      _showTemporaryMessage(error.message);
-    }
   }
 
   @override
@@ -638,10 +548,12 @@ Future<void> _loadBusData() async {
               onSosTap: () {
                 showSosMenu(context);
               },
-              onSettingsTap: () {
-                _showTemporaryMessage(
-                  '설정 화면은 B팀과 연계 예정입니다. (임시)',
+              onSettingsTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 );
+                if (mounted) await _loadNearbyStops();
               },
             ),
 
@@ -650,31 +562,77 @@ Future<void> _loadBusData() async {
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _refreshBusData,
-                child: SingleChildScrollView(
+                child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLocationSection(),
-
-                      const SizedBox(height: 18),
-
-                      _buildSearchSection(),
-
-                      const SizedBox(height: 24),
-
-                      _buildNearbyStopSection(),
-
-                      const SizedBox(height: 20),
-
-                      _buildBusList(),
-
-                      const SizedBox(height: 24),
-
-                      _buildHomeButton(),
-                    ],
-                  ),
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          _buildLocationSection(),
+                          const SizedBox(height: 18),
+                          _buildSearchSection(),
+                          const SizedBox(height: 24),
+                          _buildNearbyStopSection(),
+                          const SizedBox(height: 20),
+                          if (_nearbyStops.any(
+                            (stop) => stop.stopName.contains('터미널'),
+                          )) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                '아래 정보는 농어촌버스 운행 노선입니다. 시외버스 시간표는 포함되지 않습니다.',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          _buildListControls(),
+                          const SizedBox(height: 12),
+                          if (_arrivalInformationUnavailable) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                '실시간 도착정보는 제공되지 않아 운행 노선만 표시합니다.',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (_dataWarning != null) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                _dataWarning!,
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        ]),
+                      ),
+                    ),
+                    _buildBusList(),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                      sliver: SliverToBoxAdapter(child: _buildHomeButton()),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -690,18 +648,12 @@ Future<void> _loadBusData() async {
   Widget _buildLocationSection() {
     return Row(
       children: [
-        const Icon(
-          Icons.location_on,
-          size: 26,
-        ),
+        const Icon(Icons.location_on, size: 26),
         const SizedBox(width: 6),
-        const Expanded(
+        Expanded(
           child: Text(
-            '현재 위치 : 봉화읍 (임시)',
-            style: TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w600,
-            ),
+            '조회 지역 : ${_location?.displayName ?? '확인 중'}',
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
           ),
         ),
         TextButton.icon(
@@ -710,20 +662,12 @@ Future<void> _loadBusData() async {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(
-                  Icons.refresh,
-                  size: 23,
-                ),
+              : const Icon(Icons.refresh, size: 23),
           label: const Text(
             '새로고침',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
       ],
@@ -737,10 +681,7 @@ Future<void> _loadBusData() async {
       children: [
         const Text(
           '도착지역 검색',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
         Row(
@@ -748,22 +689,18 @@ Future<void> _loadBusData() async {
             Expanded(
               child: TextField(
                 controller: _searchController,
-                focusNode: _searchFocusNode,
+                enabled: !_isSearchLoading,
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) {
                   _searchDestination();
                 },
                 decoration: InputDecoration(
                   hintText: '예: 영주, 춘양, 봉화병원',
-                  prefixIcon: const Icon(
-                    Icons.search,
-                  ),
+                  prefixIcon: const Icon(Icons.search),
                   suffixIcon: _isSearching
                       ? IconButton(
                           onPressed: _clearSearch,
-                          icon: const Icon(
-                            Icons.close,
-                          ),
+                          icon: const Icon(Icons.close),
                         )
                       : null,
                   filled: true,
@@ -778,14 +715,20 @@ Future<void> _loadBusData() async {
             SizedBox(
               height: 56,
               child: ElevatedButton(
-                onPressed: _searchDestination,
-                child: const Text(
-                  '검색',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                onPressed: _isSearchLoading ? null : _searchDestination,
+                child: _isSearchLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        '검색',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -794,17 +737,14 @@ Future<void> _loadBusData() async {
           const SizedBox(height: 10),
           Text(
             "'${_searchController.text.trim()}' 목적지 검색 결과",
-            style: const TextStyle(
-              fontSize: 16,
-              color: Colors.black54,
-            ),
+            style: const TextStyle(fontSize: 16, color: Colors.black54),
           ),
         ],
       ],
     );
   }
 
-  // 가까운 정류장 영역
+  // 목적지 검색에 사용할 출발 정류장 영역
   Widget _buildNearbyStopSection() {
     final selectedStop = _selectedStop;
 
@@ -871,9 +811,7 @@ Future<void> _loadBusData() async {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.black12,
-          ),
+          border: Border.all(color: Colors.black12),
         ),
         child: Row(
           children: [
@@ -882,15 +820,12 @@ Future<void> _loadBusData() async {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    '가까운 정류장',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    '검색 출발 정류장',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    selectedStop.stopName,
+                    _selectedStop?.stopName ?? '주변 정류장 전체',
                     style: const TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.w600,
@@ -898,19 +833,15 @@ Future<void> _loadBusData() async {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${selectedStop.distanceM}m',
-                    style: const TextStyle(
-                      fontSize: 17,
-                      color: Colors.black54,
-                    ),
+                    _selectedStop == null
+                        ? '${_nearbyStops.length}개 정류장 · 반경 500m'
+                        : _distanceText(_selectedStop!.distanceM),
+                    style: const TextStyle(fontSize: 17, color: Colors.black54),
                   ),
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right,
-              size: 30,
-            ),
+            const Icon(Icons.chevron_right, size: 30),
           ],
         ),
       ),
@@ -919,106 +850,129 @@ Future<void> _loadBusData() async {
 
   // 버스 목록
   Widget _buildBusList() {
-    if (_isLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: 40,
-        ),
+    if (_isRefreshing && _allBusList.isEmpty) {
+      return const SliverToBoxAdapter(
         child: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          vertical: 32,
-          horizontal: 20,
-        ),
-        child: Column(
-          children: [
-            const Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Colors.black38,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 18,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _loadBusData,
-              icon: const Icon(Icons.refresh),
-              label: const Text('다시 시도'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_displayedBusList.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          vertical: 40,
-          horizontal: 20,
-        ),
-        child: const Column(
-          children: [
-            Icon(
-              Icons.directions_bus_outlined,
-              size: 48,
-              color: Colors.black38,
-            ),
-            SizedBox(height: 12),
-            Text(
-              '목적지를 지나는 버스를 찾지 못했습니다.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.black54,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        for (int index = 0;
-            index < _displayedBusList.length;
-            index++) ...[
-          BusListCard(
-            bus: _displayedBusList[index].copyWith(
-              isFavorite: _favoriteRouteIds.contains(
-                _displayedBusList[index].routeId,
-              ),
-            ),
-            onTap: () {
-              _openBusDetail(
-                _displayedBusList[index],
-              );
-            },
-            onFavoriteTap: () {
-              _toggleFavorite(
-                _displayedBusList[index],
-              );
-            },
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: CircularProgressIndicator(),
           ),
-          if (index != _displayedBusList.length - 1)
-            const SizedBox(height: 14),
-        ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null && _allBusList.isEmpty) {
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverToBoxAdapter(
+          child: Center(
+            child: Column(
+              children: [
+                Text(_errorMessage!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: _loadNearbyStops,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('다시 시도'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    if (_displayedBusList.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+          child: Column(
+            children: [
+              const Icon(
+                Icons.directions_bus_outlined,
+                size: 48,
+                color: Colors.black38,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _favoritesOnly
+                    ? '즐겨찾기한 버스가 없습니다.'
+                    : _isSearching
+                    ? '목적지를 지나는 버스를 찾지 못했습니다.'
+                    : '이 정류장을 지나는 버스가 없습니다.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18, color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final routeNumberCounts = <String, int>{};
+    for (final bus in _displayedBusList) {
+      routeNumberCounts.update(
+        bus.busNumber,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final bus = _displayedBusList[index];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: index == _displayedBusList.length - 1 ? 0 : 14,
+            ),
+            child: BusListCard(
+              bus: bus.copyWith(isFavorite: _isFavorite(bus)),
+              onTap: () => _openBusDetail(bus),
+              onFavoriteTap: _favoriteUpdatesInProgress.contains(bus.routeKey)
+                  ? null
+                  : () => _toggleFavorite(bus),
+              boardingStopName: bus.boardingStop?.stopName,
+              boardingStopDistanceM: bus.boardingStop?.distanceM,
+              showRouteIdentifier: (routeNumberCounts[bus.busNumber] ?? 0) > 1,
+            ),
+          );
+        }, childCount: _displayedBusList.length),
+      ),
+    );
+  }
+
+  Widget _buildListControls() {
+    return Row(
+      children: [
+        Text(
+          _isSearching
+              ? '검색 결과 ${_displayedBusList.length}개'
+              : '운행 버스 ${_displayedBusList.length}개',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const Spacer(),
+        FilterChip(
+          selected: _favoritesOnly,
+          avatar: const Icon(Icons.star, size: 18),
+          label: const Text('즐겨찾기만'),
+          onSelected: (selected) {
+            setState(() {
+              _favoritesOnly = selected;
+              _displayedBusList = _sortAndFilter(
+                _isSearching ? _searchResults : _allBusList,
+              );
+            });
+          },
+        ),
       ],
     );
+  }
+
+  String _distanceText(int meters) {
+    if (meters < 1000) return '${meters}m';
+    return '${(meters / 1000).toStringAsFixed(1)}km';
   }
 
   // 홈 화면으로 돌아가는 버튼
@@ -1030,23 +984,14 @@ Future<void> _loadBusData() async {
         onPressed: () {
           Navigator.pop(context);
         },
-        icon: const Icon(
-          Icons.home_outlined,
-          size: 26,
-        ),
+        icon: const Icon(Icons.home_outlined, size: 26),
         label: const Text(
           '홈 화면으로',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.black87,
-          side: const BorderSide(
-            color: Color(0xFF90CAF9),
-            width: 2,
-          ),
+          side: const BorderSide(color: Color(0xFF90CAF9), width: 2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -1058,21 +1003,9 @@ Future<void> _loadBusData() async {
   // 공통 음성인식 버튼
   Widget _buildVoiceButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        16,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       color: const Color(0xFFF8FAFC),
-      child: VoiceButton(
-        onTap: () {
-          _showTemporaryMessage(
-            '음성 인식 기능은 추후 연결합니다. (임시)',
-          );
-        },
-      ),
+      child: VoiceButton(onResult: _handleVoiceCommand),
     );
   }
-
 }

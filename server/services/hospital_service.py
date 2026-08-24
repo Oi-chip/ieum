@@ -269,11 +269,14 @@ def get_nearby_hospitals(
 
     items = _request_all_hospitals(params)
     hospitals = _convert_hospitals(items, latitude, longitude, now=now)
+    region_prefix = f"{sido} {sigungu}"
     hospitals = [
         hospital
         for hospital in hospitals
         if hospital["distance_m"] is not None
         and hospital["distance_m"] <= radius_m
+        and hospital["address"] is not None
+        and hospital["address"].startswith(region_prefix)
     ]
     hospitals.sort(key=lambda hospital: hospital["distance_m"])
     return hospitals[:limit]

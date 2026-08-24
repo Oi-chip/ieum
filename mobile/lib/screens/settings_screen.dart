@@ -352,6 +352,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ],
                         ),
                       ),
+                      if (selectedRegion != '현재 위치')
+                        TextButton(
+                          onPressed: () async {
+                            await preferences.setString(
+                              selectedRegionKey,
+                              '현재 위치',
+                            );
+                            if (!mounted) return;
+                            setState(() => selectedRegion = '현재 위치');
+                          },
+                          child: const Text('GPS 사용'),
+                        ),
+                      const Icon(Icons.chevron_right),
                     ],
                   ),
                 ),
