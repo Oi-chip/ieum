@@ -20,6 +20,7 @@ class BusScreen extends StatefulWidget {
 
 class _BusScreenState extends State<BusScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   // GPS 연결 전 사용하는 봉화 테스트 좌표
   static const double _testLatitude = 36.8931;
@@ -150,6 +151,7 @@ Future<void> _loadBusData() async {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -163,14 +165,14 @@ Future<void> _loadBusData() async {
   }
 
   // 목적지 검색으로 정류장이 변경되었을 때 안내
-  void _showStopChangedMessage() {
+  Future<void> _showStopChangedMessage() async {
     final selectedStop = _selectedStop;
 
     if (selectedStop == null) {
       return;
     }
 
-    showDialog(
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -230,6 +232,9 @@ Future<void> _loadBusData() async {
         );
       },
     );
+    if (mounted) {
+      _searchFocusNode.unfocus();
+    }
   }
 
   // 버스 정보 새로고침
@@ -338,7 +343,7 @@ Future<void> _loadBusData() async {
       });
 
       if (_wasStopAutomaticallyChanged) {
-        _showStopChangedMessage();
+        await _showStopChangedMessage();
       }
     } on ApiException catch (error) {
       if (!mounted) {
@@ -443,7 +448,7 @@ Future<void> _loadBusData() async {
         ),
       ),
     );
-
+    _searchFocusNode.unfocus();
     if (updatedBus == null) {
       return;
     }
@@ -743,6 +748,7 @@ Future<void> _loadBusData() async {
             Expanded(
               child: TextField(
                 controller: _searchController,
+                focusNode: _searchFocusNode,
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) {
                   _searchDestination();
