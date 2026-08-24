@@ -106,6 +106,17 @@ class BusRouteStopData {
     this.stopNumber,
     required this.order,
   });
+
+  factory BusRouteStopData.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return BusRouteStopData(
+      stopId: json['id']?.toString() ?? '',
+      stopName: json['name']?.toString() ?? '정류장 이름 없음',
+      stopNumber: json['number']?.toString(),
+      order: _toInt(json['order']) ?? 0,
+    );
+  }
 }
 
 
@@ -133,6 +144,59 @@ class BusDetailData {
     this.sundayIntervalMinutes,
     required this.stops,
   });
+
+  factory BusDetailData.fromJson({
+    required Map<String, dynamic> json,
+    required BusStopData nearbyStop,
+    required BusData selectedBus,
+  }) {
+    final routeJson = json['route'];
+
+    if (routeJson is! Map<String, dynamic>) {
+      throw const FormatException(
+        '버스 노선 상세정보 형식이 올바르지 않습니다.',
+      );
+    }
+
+    final stopsJson = routeJson['stops'];
+
+    final stops = stopsJson is List
+        ? stopsJson
+            .whereType<Map<String, dynamic>>()
+            .map(BusRouteStopData.fromJson)
+            .toList()
+        : <BusRouteStopData>[];
+
+    final bus = BusData(
+      routeId: routeJson['id']?.toString() ?? selectedBus.routeId,
+      busNumber:
+          routeJson['number']?.toString() ?? selectedBus.busNumber,
+      routeType:
+          routeJson['type']?.toString() ?? selectedBus.routeType,
+      startStop:
+          routeJson['start_stop']?.toString() ?? selectedBus.startStop,
+      endStop:
+          routeJson['end_stop']?.toString() ?? selectedBus.endStop,
+      matchedStop: selectedBus.matchedStop,
+      remainingStops: selectedBus.remainingStops,
+      arrivalMinutes: selectedBus.arrivalMinutes,
+      isFavorite: selectedBus.isFavorite,
+    );
+
+    return BusDetailData(
+      nearbyStop: nearbyStop,
+      bus: bus,
+      firstBusTime: routeJson['first_bus_time']?.toString(),
+      lastBusTime: routeJson['last_bus_time']?.toString(),
+      weekdayIntervalMinutes:
+          _toInt(routeJson['weekday_interval_minutes']),
+      saturdayIntervalMinutes:
+          _toInt(routeJson['saturday_interval_minutes']),
+      sundayIntervalMinutes:
+          _toInt(routeJson['sunday_interval_minutes']),
+      stops: stops,
+    );
+  }
 }
 
 int? _toInt(dynamic value) {

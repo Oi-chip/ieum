@@ -423,6 +423,13 @@ Future<void> _loadBusData() async {
 
   // 버스 카드 선택
   Future<void> _openBusDetail(BusData bus) async {
+    final selectedStop = _selectedStop;
+    if (selectedStop == null) {
+      _showTemporaryMessage(
+        '정류장 정보를 불러오지 못했습니다.',
+      );
+      return;
+    }
     final updatedBus = await Navigator.push<BusData>(
       context,
       MaterialPageRoute(
@@ -432,6 +439,7 @@ Future<void> _loadBusData() async {
               bus.routeId,
             ),
           ),
+          nearbyStop: selectedStop,
         ),
       ),
     );

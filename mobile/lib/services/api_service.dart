@@ -206,4 +206,62 @@ class ApiService {
       );
     }
   }
+
+  // 버스 노선 상세정보 조회
+  Future<Map<String, dynamic>> getBusRoute({
+    required String cityCode,
+    required String routeId,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/api/bus/route',
+    ).replace(
+      queryParameters: {
+        'city_code': cityCode,
+        'route_id': routeId,
+      },
+    );
+
+    try {
+      final response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          '버스 노선정보 서버 오류가 발생했습니다. '
+          '(${response.statusCode})',
+        );
+      }
+
+      final body = jsonDecode(
+        utf8.decode(response.bodyBytes),
+      );
+
+      if (body is! Map<String, dynamic>) {
+        throw const ApiException(
+          '버스 노선정보 서버가 올바르게 응답하지 않았습니다.',
+        );
+      }
+
+      if (body['success'] != true ||
+          body['data'] is! Map<String, dynamic>) {
+        final error = body['error'];
+
+        final message =
+            error is Map ? error['message']?.toString() : null;
+
+        throw ApiException(
+          message ?? '버스 노선정보를 불러오지 못했습니다.',
+        );
+      }
+
+      return body['data'] as Map<String, dynamic>;
+    } on ApiException {
+      rethrow;
+    } catch (error) {
+      throw ApiException(
+        '버스 서버에 연결할 수 없습니다.',
+      );
+    }
+  }
 }

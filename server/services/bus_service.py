@@ -234,6 +234,34 @@ def _optional_float(value):
     except (TypeError, ValueError):
         return None
 
+def get_route_stops(city_code, route_id):
+    """목적지 검색에 사용할 노선 정류장 목록만 반환합니다."""
+    stop_items = _get_all_response_items(
+        BUS_ROUTE_STOPS_API_URL,
+        {
+            "cityCode": city_code,
+            "routeId": route_id,
+        },
+    )
+
+    stops = []
+
+    for stop_item in stop_items:
+        try:
+            stop = {
+                "id": str(stop_item["nodeid"]),
+                "name": str(stop_item["nodenm"]),
+                "order": int(stop_item["nodeord"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        stops.append(stop)
+
+    return sorted(
+        stops,
+        key=lambda stop: stop["order"],
+    )
 
 def get_bus_route(city_code, route_id):
     """노선 기본정보와 노선이 지나가는 정류장 전체를 반환합니다."""
@@ -327,8 +355,8 @@ def search_buses_by_destination(
     longitude,
     destination,
 ):
-    """주변 정류장에서 목적지를 향해 갈 수 있는 버스를 검색합니다."""
-    destination = destination.strip()
+    """주변 정류장에서 목적지로 갈 수 있는 버스를 검색합니다."""
+    destination = destination.strip().lower()
 
     nearby_stops = get_nearby_stops(
         latitude,
@@ -341,8 +369,11 @@ def search_buses_by_destination(
             "buses": [],
         }
 
-    # 가까운 순서대로 최대 5개 정류장을 확인합니다.
     search_stops = nearby_stops[:SEARCH_STOP_LIMIT]
+
+    # 같은 노선의 전체 정류장을 반복 요청하지 않도록
+    # 이번 검색 요청 안에서 캐시합니다.
+    route_stops_cache = {}
 
     for stop in search_stops:
         city_code = stop["city_code"]
@@ -356,33 +387,23 @@ def search_buses_by_destination(
         if not routes:
             continue
 
-        arrivals = get_bus_arrivals(
-            city_code,
-            stop_id,
-        )
-
-        arrival_by_route_id = {
-            arrival["route_id"]: arrival
-            for arrival in arrivals
-        }
-
-        matched_buses = []
+        matched_routes = []
 
         for route in routes:
-            route_detail = get_bus_route(
-                city_code,
-                route["route_id"],
-            )
+            route_id = route["route_id"]
 
-            if route_detail is None:
-                continue
+            # 이미 조회했던 노선이면 공공데이터 API를 다시 호출하지 않습니다.
+            if route_id in route_stops_cache:
+                route_stops = route_stops_cache[route_id]
+            else:
+                route_stops = get_route_stops(
+                    city_code,
+                    route_id,
+                )
 
-            route_stops = route_detail.get(
-                "stops",
-                [],
-            )
+                route_stops_cache[route_id] = route_stops
 
-            # 현재 승차 정류장이 노선에서 몇 번째인지 확인합니다.
+            # 현재 정류장의 순번 확인
             current_stop = next(
                 (
                     route_stop
@@ -397,14 +418,14 @@ def search_buses_by_destination(
 
             current_order = current_stop["order"]
 
-            # 현재 정류장 이후의 정류장만 목적지 후보로 확인합니다.
+            # 현재 정류장보다 뒤에 있는 정류장 중 목적지를 검색
             matched_stop = next(
                 (
                     route_stop
                     for route_stop in route_stops
                     if (
                         route_stop["order"] > current_order
-                        and destination.lower()
+                        and destination
                         in route_stop["name"].lower()
                     )
                 ),
@@ -414,34 +435,56 @@ def search_buses_by_destination(
             if matched_stop is None:
                 continue
 
-            arrival = arrival_by_route_id.get(
-                route["route_id"]
-            )
-
-            matched_buses.append({
-                "route_id": route["route_id"],
-                "bus_number": route["bus_number"],
-                "route_type": route.get("route_type"),
-                "start_stop": route.get("start_stop"),
-                "end_stop": route.get("end_stop"),
-                "matched_stop": matched_stop["name"],
-                "remaining_stops": (
-                    arrival["remaining_stops"]
-                    if arrival is not None
-                    else None
-                ),
-                "arrival_minutes": (
-                    arrival["arrival_minutes"]
-                    if arrival is not None
-                    else None
-                ),
+            matched_routes.append({
+                "route": route,
+                "matched_stop": matched_stop,
             })
 
-        # 목적지로 갈 수 있는 가장 가까운 정류장을 찾으면 반환합니다.
-        if matched_buses:
+        # 이 정류장에서 목적지로 가는 노선을 찾은 경우에만
+        # 실시간 도착정보를 한 번 조회합니다.
+        if matched_routes:
+            arrivals = get_bus_arrivals(
+                city_code,
+                stop_id,
+            )
+
+            arrival_by_route_id = {
+                arrival["route_id"]: arrival
+                for arrival in arrivals
+            }
+
+            buses = []
+
+            for matched in matched_routes:
+                route = matched["route"]
+                matched_stop = matched["matched_stop"]
+
+                arrival = arrival_by_route_id.get(
+                    route["route_id"]
+                )
+
+                buses.append({
+                    "route_id": route["route_id"],
+                    "bus_number": route["bus_number"],
+                    "route_type": route.get("route_type"),
+                    "start_stop": route.get("start_stop"),
+                    "end_stop": route.get("end_stop"),
+                    "matched_stop": matched_stop["name"],
+                    "remaining_stops": (
+                        arrival["remaining_stops"]
+                        if arrival is not None
+                        else None
+                    ),
+                    "arrival_minutes": (
+                        arrival["arrival_minutes"]
+                        if arrival is not None
+                        else None
+                    ),
+                })
+
             return {
                 "stop": stop,
-                "buses": matched_buses,
+                "buses": buses,
             }
 
     return {
