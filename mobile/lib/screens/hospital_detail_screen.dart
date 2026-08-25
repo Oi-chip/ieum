@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../models/hospital_data.dart';
@@ -11,34 +10,21 @@ import 'settings_screen.dart';
 class HospitalDetailScreen extends StatelessWidget {
   final HospitalData hospital;
 
-  const HospitalDetailScreen({
-    super.key,
-    required this.hospital,
-  });
+  const HospitalDetailScreen({super.key, required this.hospital});
 
   // 아직 구현되지 않은 기능 안내
-  void _showTemporaryMessage(
-    BuildContext context,
-    String message,
-  ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+  void _showTemporaryMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // 병원 전화하기
-  Future<void> _callHospital(
-    BuildContext context,
-  ) async {
+  Future<void> _callHospital(BuildContext context) async {
     final phoneNumber = hospital.phoneNumber;
 
     if (phoneNumber == null || phoneNumber.trim().isEmpty) {
-      _showTemporaryMessage(
-        context,
-        '등록된 전화번호가 없습니다.',
-      );
+      _showTemporaryMessage(context, '등록된 전화번호가 없습니다.');
       return;
     }
 
@@ -49,10 +35,7 @@ class HospitalDetailScreen extends StatelessWidget {
     }
 
     if (!success) {
-      _showTemporaryMessage(
-        context,
-        '전화 앱을 실행하지 못했습니다.',
-      );
+      _showTemporaryMessage(context, '전화 앱을 실행하지 못했습니다.');
     }
   }
 
@@ -72,10 +55,15 @@ class HospitalDetailScreen extends StatelessWidget {
     } else if (command.contains('전화')) {
       _callHospital(context);
     } else {
-      _showTemporaryMessage(
-        context,
-        "'$text'(으)로 인식했습니다. 전화 또는 목록으로라고 말해 주세요.",
-      );
+      final keyword = text
+          .replaceFirst(RegExp(r'^병원\s*검색\s*'), '')
+          .replaceAll(RegExp(r'(검색해\s*줘|검색|찾아\s*줘|알려\s*줘|보여\s*줘)$'), '')
+          .trim();
+      if (keyword.isEmpty) {
+        _showTemporaryMessage(context, '찾을 병원 이름을 말해 주세요.');
+        return;
+      }
+      Navigator.pop(context, keyword);
     }
   }
 
@@ -99,9 +87,7 @@ class HospitalDetailScreen extends StatelessWidget {
               },
             ),
 
-            const Divider(
-              height: 1,
-            ),
+            const Divider(height: 1),
 
             Expanded(
               child: SingleChildScrollView(
@@ -138,10 +124,7 @@ class HospitalDetailScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFEAF7EE),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFF81C784),
-          width: 2,
-        ),
+        border: Border.all(color: const Color(0xFF81C784), width: 2),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,10 +132,7 @@ class HospitalDetailScreen extends StatelessWidget {
           Expanded(
             child: Text(
               hospital.hospitalName,
-              style: const TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
             ),
           ),
 
@@ -166,16 +146,16 @@ class HospitalDetailScreen extends StatelessWidget {
                 color: hospital.isOpen == null
                     ? Colors.orange
                     : hospital.isOpen!
-                        ? Colors.green
-                        : Colors.red,
+                    ? Colors.green
+                    : Colors.red,
               ),
               const SizedBox(width: 6),
               Text(
                 hospital.isOpen == null
                     ? '전화 확인 필요'
                     : hospital.isOpen!
-                        ? '진료 중'
-                        : '진료 종료',
+                    ? '진료 중'
+                    : '진료 종료',
                 style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.bold,
@@ -196,9 +176,7 @@ class HospitalDetailScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black12,
-        ),
+        border: Border.all(color: Colors.black12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,8 +204,7 @@ class HospitalDetailScreen extends StatelessWidget {
           _buildInfoRow(
             icon: Icons.directions_walk,
             title: '거리',
-            value:
-                '${hospital.distanceKm.toStringAsFixed(1)}km',
+            value: '${hospital.distanceKm.toStringAsFixed(1)}km',
           ),
         ],
       ),
@@ -243,97 +220,71 @@ class HospitalDetailScreen extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 27,
-        ),
+        Icon(icon, size: 27),
         const SizedBox(width: 12),
         SizedBox(
           width: 90,
           child: Text(
             title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 18))),
+      ],
+    );
+  }
+
+  // 전화번호와 전화하기 버튼
+  Widget _buildPhoneSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.phone, size: 27),
+            const SizedBox(width: 12),
+            const SizedBox(
+              width: 90,
+              child: Text(
+                '전화번호',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                hospital.phoneNumber ?? '전화번호 정보 없음',
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 14),
+
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed:
+                hospital.phoneNumber == null ||
+                    hospital.phoneNumber!.trim().isEmpty
+                ? null
+                : () {
+                    _callHospital(context);
+                  },
+            icon: const Icon(Icons.phone, size: 24),
+            label: const Text(
+              '전화하기',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
             ),
           ),
         ),
       ],
     );
   }
-
-  // 전화번호와 전화하기 버튼
-    Widget _buildPhoneSection(BuildContext context) {
-    return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-        Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-            const Icon(
-                Icons.phone,
-                size: 27,
-            ),
-            const SizedBox(width: 12),
-            const SizedBox(
-                width: 90,
-                child: Text(
-                '전화번호',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                ),
-                ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-                child: Text(
-                hospital.phoneNumber ?? '전화번호 정보 없음',
-                style: const TextStyle(
-                    fontSize: 18,
-                ),
-                ),
-            ),
-            ],
-        ),
-
-        const SizedBox(height: 14),
-
-        SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton.icon(
-            onPressed: hospital.phoneNumber == null ||
-                    hospital.phoneNumber!.trim().isEmpty
-                ? null
-                : () {
-                    _callHospital(context);
-                  },
-            icon: const Icon(
-                Icons.phone,
-                size: 24,
-            ),
-            label: const Text(
-                '전화하기',
-                style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
-                ),
-            ),
-            ),
-        ),
-        ],
-    );
-    }
 
   // 병원 목록으로 돌아가는 버튼
   Widget _buildBackButton(BuildContext context) {
@@ -344,16 +295,10 @@ class HospitalDetailScreen extends StatelessWidget {
         onPressed: () {
           _goBackToHospitalList(context);
         },
-        icon: const Icon(
-          Icons.list,
-          size: 26,
-        ),
+        icon: const Icon(Icons.list, size: 26),
         label: const Text(
           '병원 목록 보기',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
     );
@@ -362,12 +307,7 @@ class HospitalDetailScreen extends StatelessWidget {
   // 공통 음성 인식 버튼
   Widget _buildVoiceButton(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        16,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       color: const Color(0xFFF8FAFC),
       child: VoiceButton(
         onResult: (text) => _handleVoiceCommand(context, text),

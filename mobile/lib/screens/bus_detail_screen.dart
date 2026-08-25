@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../models/bus_data.dart';
@@ -13,11 +12,7 @@ class BusDetailScreen extends StatefulWidget {
   final BusData bus;
   final BusStopData stop;
 
-  const BusDetailScreen({
-    super.key,
-    required this.bus,
-    required this.stop,
-  });
+  const BusDetailScreen({super.key, required this.bus, required this.stop});
 
   @override
   State<BusDetailScreen> createState() => _BusDetailScreenState();
@@ -42,7 +37,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
 
     _loadFavorite();
     _loadRoute();
-  } 
+  }
 
   Future<void> _loadRoute() async {
     if (mounted) {
@@ -52,7 +47,10 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       });
     }
     try {
-      final detail = await ApiService.instance.getBusRoute(widget.stop, widget.bus);
+      final detail = await ApiService.instance.getBusRoute(
+        widget.stop,
+        widget.bus,
+      );
       if (!mounted) return;
       setState(() {
         _detail = detail;
@@ -70,8 +68,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
 
   // 휴대폰에 저장된 즐겨찾기 상태 불러오기
   Future<void> _loadFavorite() async {
-    final isFavorite =
-        await FavoriteBusService.isFavorite(widget.bus.routeId);
+    final isFavorite = await FavoriteBusService.isFavorite(widget.bus.routeId);
 
     if (!mounted) {
       return;
@@ -84,17 +81,16 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
 
   // 아직 구현되지 않은 기능 안내
   void _showTemporaryMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // 즐겨찾기 추가 또는 해제
   Future<void> _toggleFavorite() async {
-    final isFavorite =
-        await FavoriteBusService.toggleFavorite(widget.bus.routeId);
+    final isFavorite = await FavoriteBusService.toggleFavorite(
+      widget.bus.routeId,
+    );
 
     if (!mounted) {
       return;
@@ -117,18 +113,15 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     }
 
     if (command.contains('즐겨찾기')) {
-      final wantsRemoval = command.contains('해제') ||
+      final wantsRemoval =
+          command.contains('해제') ||
           command.contains('취소') ||
           command.contains('삭제');
-      final wantsAddition = command.contains('추가') ||
-          command.contains('등록');
+      final wantsAddition = command.contains('추가') || command.contains('등록');
 
-      if ((wantsRemoval && !_isFavorite) ||
-          (wantsAddition && _isFavorite)) {
+      if ((wantsRemoval && !_isFavorite) || (wantsAddition && _isFavorite)) {
         _showTemporaryMessage(
-          _isFavorite
-              ? '이미 즐겨찾기에 등록되어 있습니다.'
-              : '이미 즐겨찾기가 해제되어 있습니다.',
+          _isFavorite ? '이미 즐겨찾기에 등록되어 있습니다.' : '이미 즐겨찾기가 해제되어 있습니다.',
         );
         return;
       }
@@ -137,31 +130,33 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       if (!mounted) {
         return;
       }
-      _showTemporaryMessage(
-        _isFavorite
-            ? '즐겨찾기에 추가했습니다.'
-            : '즐겨찾기를 해제했습니다.',
-      );
+      _showTemporaryMessage(_isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기를 해제했습니다.');
+      return;
+    }
+
+    final busNumberMatch = RegExp(
+      r'(\d+(?:\s*-\s*\d+)?)\s*번(?:\s*버스)?',
+    ).firstMatch(text);
+    if (busNumberMatch != null) {
+      final number = busNumberMatch.group(1)!.replaceAll(RegExp(r'\s+'), '');
+      _goBackToBusList(searchBusNumber: number);
       return;
     }
 
     _showTemporaryMessage(
-      "'$text'(으)로 인식했습니다. 즐겨찾기 또는 목록으로라고 말해 주세요.",
+      "'$text'(으)로 인식했습니다. 다른 버스 번호, 즐겨찾기 또는 목록으로라고 말해 주세요.",
     );
   }
 
   // 버스 목록 화면으로 돌아가기
-  void _goBackToBusList() {
-    final updatedBus = widget.bus.copyWith(
-      isFavorite: _isFavorite,
-    );
+  void _goBackToBusList({String? searchBusNumber}) {
+    final updatedBus = widget.bus.copyWith(isFavorite: _isFavorite);
 
     Navigator.pop(
       context,
-      updatedBus,
+      BusDetailResult(bus: updatedBus, searchBusNumber: searchBusNumber),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -172,14 +167,9 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
           return;
         }
 
-        final updatedBus = widget.bus.copyWith(
-          isFavorite: _isFavorite,
-        );
+        final updatedBus = widget.bus.copyWith(isFavorite: _isFavorite);
 
-        Navigator.pop(
-          context,
-          updatedBus,
-        );
+        Navigator.pop(context, BusDetailResult(bus: updatedBus));
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
@@ -199,9 +189,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
                 },
               ),
 
-              const Divider(
-                height: 1,
-              ),
+              const Divider(height: 1),
 
               Expanded(
                 child: SingleChildScrollView(
@@ -247,35 +235,24 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black12,
-        ),
+        border: Border.all(color: Colors.black12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             '가까운 정류장',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
             _detail.nearbyStop.stopName,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
             '${_detail.nearbyStop.distanceM}m',
-            style: const TextStyle(
-              fontSize: 15,
-              color: Colors.black54,
-            ),
+            style: const TextStyle(fontSize: 15, color: Colors.black54),
           ),
         ],
       ),
@@ -290,10 +267,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFE8F3FF),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFF90CAF9),
-          width: 2,
-        ),
+        border: Border.all(color: const Color(0xFF90CAF9), width: 2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,9 +287,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
               IconButton(
                 onPressed: _toggleFavorite,
                 icon: Icon(
-                  _isFavorite
-                      ? Icons.star
-                      : Icons.star_border,
+                  _isFavorite ? Icons.star : Icons.star_border,
                   size: 38,
                 ),
                 tooltip: '즐겨찾기',
@@ -327,10 +299,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
             const SizedBox(height: 4),
             Text(
               _detail.bus.routeType!,
-              style: const TextStyle(
-                fontSize: 17,
-                color: Colors.black54,
-              ),
+              style: const TextStyle(fontSize: 17, color: Colors.black54),
             ),
           ],
 
@@ -338,30 +307,21 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
 
           Text(
             _buildRouteText(),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
 
           const SizedBox(height: 14),
 
           Text(
             _buildArrivalText(),
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
           ),
 
           const SizedBox(height: 6),
 
           Text(
             _buildRemainingStopsText(),
-            style: const TextStyle(
-              fontSize: 17,
-              color: Colors.black54,
-            ),
+            style: const TextStyle(fontSize: 17, color: Colors.black54),
           ),
         ],
       ),
@@ -376,47 +336,33 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black12,
-        ),
+        border: Border.all(color: Colors.black12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             '운행 정보',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
 
           const SizedBox(height: 14),
 
           Text(
             '첫차 : ${_detail.firstBusTime ?? '정보 없음'}',
-            style: const TextStyle(
-              fontSize: 18,
-            ),
+            style: const TextStyle(fontSize: 18),
           ),
 
           const SizedBox(height: 8),
 
           Text(
             '막차 : ${_detail.lastBusTime ?? '정보 없음'}',
-            style: const TextStyle(
-              fontSize: 18,
-            ),
+            style: const TextStyle(fontSize: 18),
           ),
 
           const SizedBox(height: 8),
 
-          Text(
-            _buildIntervalText(),
-            style: const TextStyle(
-              fontSize: 18,
-            ),
-          ),
+          Text(_buildIntervalText(), style: const TextStyle(fontSize: 18)),
         ],
       ),
     );
@@ -430,19 +376,14 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black12,
-        ),
+        border: Border.all(color: Colors.black12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             '노선 상세 정보',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
 
           const SizedBox(height: 18),
@@ -469,25 +410,16 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
               ),
             ),
 
-          for (int index = 0;
-              index < _detail.stops.length;
-              index++) ...[
+          for (int index = 0; index < _detail.stops.length; index++) ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Column(
                   children: [
-                    const Icon(
-                      Icons.circle,
-                      size: 15,
-                    ),
+                    const Icon(Icons.circle, size: 15),
 
                     if (index != _detail.stops.length - 1)
-                      Container(
-                        width: 2,
-                        height: 42,
-                        color: Colors.black26,
-                      ),
+                      Container(width: 2, height: 42, color: Colors.black26),
                   ],
                 ),
 
@@ -495,9 +427,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
 
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(
-                      bottom: 20,
-                    ),
+                    padding: const EdgeInsets.only(bottom: 20),
                     child: Text(
                       _routeStopLabel(index),
                       style: const TextStyle(
@@ -522,16 +452,10 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       height: 58,
       child: OutlinedButton.icon(
         onPressed: _goBackToBusList,
-        icon: const Icon(
-          Icons.list,
-          size: 26,
-        ),
+        icon: const Icon(Icons.list, size: 26),
         label: const Text(
           '버스 목록 보기',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
     );
@@ -540,16 +464,9 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
   // 공통 음성 인식 버튼
   Widget _buildVoiceButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        16,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       color: const Color(0xFFF8FAFC),
-      child: VoiceButton(
-        onResult: _handleVoiceCommand,
-      ),
+      child: VoiceButton(onResult: _handleVoiceCommand),
     );
   }
 
@@ -560,9 +477,7 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     if (start != null && end != null) {
       if (start == end) {
         final via = _detail.bus.viaStop;
-        return via == null
-            ? '$start 출발·도착 순환노선'
-            : '$start → $via → $end';
+        return via == null ? '$start 출발·도착 순환노선' : '$start → $via → $end';
       }
       return '$start → $end';
     }

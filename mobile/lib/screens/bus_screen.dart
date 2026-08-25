@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/bus_data.dart';
@@ -5,6 +7,7 @@ import '../models/gps_location.dart';
 import '../services/api_service.dart';
 import '../services/favorite_bus_service.dart';
 import '../services/selected_location_service.dart';
+import '../services/tts_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/bus_list_card.dart';
 import '../widgets/voice_button.dart';
@@ -408,13 +411,21 @@ class _BusScreenState extends State<BusScreen> {
   }
 
   // 버스 화면 음성 명령 처리
-  void _handleVoiceCommand(String text) {
+  Future<void> _handleVoiceCommand(String text) async {
     final command = text.toLowerCase().replaceAll(' ', '');
 
     if (command.contains('뒤로') ||
         command.contains('홈') ||
         command.contains('나가기')) {
       Navigator.pop(context);
+      return;
+    }
+
+    final busNumberMatch = RegExp(
+      r'(\d+(?:\s*-\s*\d+)?)\s*번(?:\s*버스)?',
+    ).firstMatch(text);
+    if (busNumberMatch != null) {
+      await _searchByBusNumber(busNumberMatch.group(1)!);
       return;
     }
 
@@ -440,9 +451,44 @@ class _BusScreenState extends State<BusScreen> {
     _searchDestination();
   }
 
+  Future<void> _searchByBusNumber(String spokenNumber) async {
+    if (_isRefreshing) {
+      _showTemporaryMessage('버스 정보를 불러오는 중입니다. 잠시 후 다시 말해 주세요.');
+      return;
+    }
+
+    final number = spokenNumber.replaceAll(RegExp(r'\s+'), '');
+    final matches = _allBusList.where((bus) {
+      final busNumber = bus.busNumber
+          .replaceAll(RegExp(r'\s+'), '')
+          .replaceAll(RegExp(r'번$'), '');
+      return busNumber == number;
+    }).toList();
+
+    if (!mounted) return;
+    _searchController.text = '$number번';
+    setState(() {
+      _isSearching = true;
+      _searchResults = matches;
+      _displayedBusList = _sortAndFilter(matches);
+    });
+
+    if (matches.isEmpty) {
+      final guide = '$number번 버스를 찾지 못했습니다.';
+      _showTemporaryMessage(guide);
+      unawaited(TtsService.instance.speak(guide));
+      return;
+    }
+
+    unawaited(TtsService.instance.speak('$number번 버스를 찾았습니다.'));
+    if (matches.length == 1) {
+      await _openBusDetail(matches.first);
+    }
+  }
+
   // 버스 카드 선택
   Future<void> _openBusDetail(BusData bus) async {
-    final updatedBus = await Navigator.push<BusData>(
+    final result = await Navigator.push<BusDetailResult>(
       context,
       MaterialPageRoute(
         builder: (context) => BusDetailScreen(
@@ -454,9 +500,11 @@ class _BusScreenState extends State<BusScreen> {
       ),
     );
 
-    if (updatedBus == null) {
+    if (result == null) {
       return;
     }
+
+    final updatedBus = result.bus;
 
     if (!mounted) {
       return;
@@ -477,6 +525,11 @@ class _BusScreenState extends State<BusScreen> {
         return item;
       }).toList();
     });
+
+    final searchBusNumber = result.searchBusNumber;
+    if (searchBusNumber != null) {
+      await _searchByBusNumber(searchBusNumber);
+    }
   }
 
   // 버스 즐겨찾기 추가/해제

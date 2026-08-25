@@ -1,28 +1,27 @@
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../mock_data/home_mock_data.dart';
 import '../models/bus_data.dart';
 import '../models/home_data.dart';
 import '../models/hospital_data.dart';
 import '../services/api_service.dart';
 import '../services/favorite_bus_service.dart';
 import '../services/selected_location_service.dart';
+import '../services/tts_service.dart';
 
 import '../widgets/app_top_bar.dart';
 import '../widgets/home_bus_card.dart';
 import '../widgets/home_hospital_card.dart';
-import '../widgets/home_news_card.dart';
 import '../widgets/home_weather_card.dart';
+import '../widgets/hold_to_speak.dart';
 import '../widgets/sos_menu.dart';
 import '../widgets/voice_button.dart';
 
 import 'bus_screen.dart';
 import 'hospital_screen.dart';
-import 'news_screen.dart';
 import 'settings_screen.dart';
 import 'weather_screen.dart';
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,6 +29,7 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
+
 class _HomeScreenState extends State<HomeScreen> {
   static const Color _backgroundColor = Color(0xFFF8FAFC);
 
@@ -74,7 +74,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final stops = results[0] as List<BusStopData>;
       final hospitals = results[1] as List<HospitalData>;
       final weather = results[2] as Map<String, dynamic>;
-      final buses = stops.isEmpty ? <BusData>[] : await ApiService.instance.getBusArrivals(stops.first);
+      final buses = stops.isEmpty
+          ? <BusData>[]
+          : await ApiService.instance.getBusArrivals(stops.first);
       final current = weather['current'] as Map<String, dynamic>? ?? {};
       if (!mounted) return;
       setState(() {
@@ -87,7 +89,8 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
         _homeWeather = WeatherSummary(
-          temperature: '${(current['temperature_c'] as num?)?.round() ?? '-'}°C',
+          temperature:
+              '${(current['temperature_c'] as num?)?.round() ?? '-'}°C',
           condition: current['condition']?.toString() ?? '정보 없음',
         );
       });
@@ -105,18 +108,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _setHomeBus(BusStopData stop, List<BusData> candidates) async {
-    final favoriteRouteIds =
-        await FavoriteBusService.getFavoriteRouteIds();
+    final favoriteRouteIds = await FavoriteBusService.getFavoriteRouteIds();
 
     if (candidates.isEmpty) {
       return;
     }
 
     candidates.sort((a, b) {
-      final aFavorite =
-          favoriteRouteIds.contains(a.routeId);
-      final bFavorite =
-          favoriteRouteIds.contains(b.routeId);
+      final aFavorite = favoriteRouteIds.contains(a.routeId);
+      final bFavorite = favoriteRouteIds.contains(b.routeId);
 
       // 즐겨찾기 버스를 우선 표시
       if (aFavorite != bFavorite) {
@@ -124,10 +124,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // 같은 조건에서는 도착시간이 빠른 버스를 우선 표시
-      final aArrival =
-          a.arrivalMinutes ?? 999999;
-      final bArrival =
-          b.arrivalMinutes ?? 999999;
+      final aArrival = a.arrivalMinutes ?? 999999;
+      final bArrival = b.arrivalMinutes ?? 999999;
 
       return aArrival.compareTo(bArrival);
     });
@@ -143,8 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
         stopName: '정류장 : ${stop.stopName}',
         busNumber: selectedBus.busNumber,
         route: _buildHomeRouteText(selectedBus),
-        arrivalTime:
-            _buildHomeArrivalText(selectedBus),
+        arrivalTime: _buildHomeArrivalText(selectedBus),
       );
     });
   }
@@ -184,9 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // 버스 화면 이동
-  Future<void> _goToBusScreen(
-    BuildContext context,
-  ) async {
+  Future<void> _goToBusScreen(BuildContext context) async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const BusScreen()),
@@ -219,76 +214,39 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) await _loadHomeData();
   }
 
-  void _goToNewsScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const NewsScreen()),
-    );
-  }
-
   // 메인 화면 음성 명령 처리
   void _handleVoiceCommand(BuildContext context, String text) {
     final command = text.toLowerCase().replaceAll(' ', '');
 
     if (command.contains('긴급') ||
         command.contains('도와줘') ||
-        command.contains('에스오에스')) {
-      showSosMenu(context);
-    } else if (command.contains('버스')) {
-      _goToBusScreen(context);
-    } else if (command.contains('병원') || command.contains('의원')) {
-      _goToHospitalScreen(context);
-    } else if (command.contains('날씨') || command.contains('기온')) {
-      _goToWeatherScreen(context);
-    } else if (command.contains('소식') ||
-        command.contains('뉴스') ||
-        command.contains('공지')) {
-      _goToNewsScreen(context);
-    } else if (command.contains('설정')) {
-      _goToSettingsScreen(context);
-    } else {
-      _showTemporaryMessage(
-        context,
-        "'$text'(으)로 인식했습니다. 버스, 병원, 날씨, 지역 소식 또는 설정이라고 말해 주세요.",
+        command.contains('에스오에스') ||
+        command.contains('sos')) {
+      _openWithVoiceGuide(
+        '긴급 도움 메뉴를 엽니다. 필요한 도움을 선택해 주세요.',
+        () => showSosMenu(context),
       );
+    } else if (command.contains('버스')) {
+      _openWithVoiceGuide('버스 화면으로 이동합니다.', () => _goToBusScreen(context));
+    } else if (command.contains('병원') || command.contains('의원')) {
+      _openWithVoiceGuide(
+        '가까운 병원 화면으로 이동합니다.',
+        () => _goToHospitalScreen(context),
+      );
+    } else if (command.contains('날씨') || command.contains('기온')) {
+      _openWithVoiceGuide('날씨 화면으로 이동합니다.', () => _goToWeatherScreen(context));
+    } else if (command.contains('설정')) {
+      _openWithVoiceGuide('설정 화면으로 이동합니다.', () => _goToSettingsScreen(context));
+    } else {
+      const guide = '명령을 알아듣지 못했습니다. 에스오에스, 설정, 버스, 병원, 날씨 중 하나를 말해 주세요.';
+      _showTemporaryMessage(context, "'$text'(으)로 인식했습니다. $guide");
+      unawaited(TtsService.instance.speak(guide));
     }
   }
 
-  // ==========================================
-  // SOS 선택창
-  // ==========================================
-  void _showSosMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (bottomSheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '긴급 도움',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  '필요한 도움을 선택해 주세요.',
-                  style: TextStyle(fontSize: 18, color: Colors.black54),
-                ),
-
-                const SizedBox(height: 24),
-
-                const SizedBox(height: 12),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  void _openWithVoiceGuide(String guide, VoidCallback open) {
+    open();
+    unawaited(TtsService.instance.speak(guide));
   }
 
   // ==========================================
@@ -331,38 +289,41 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 4),
 
           // 버스 카드
-          HomeBusCard(
-            bus: _homeBus,
-            onTap: () {
-              _goToBusScreen(context);
-            },
+          HoldToSpeak(
+            text:
+                '${_homeBus.stopName}. ${_homeBus.busNumber}번 버스, '
+                '${_homeBus.route}. ${_homeBus.arrivalTime}.',
+            child: HomeBusCard(
+              bus: _homeBus,
+              onTap: () => _goToBusScreen(context),
+            ),
           ),
 
           const SizedBox(height: 14),
 
           // 병원 카드
           // SOS 버튼은 카드 내부에서 제거됨
-          HomeHospitalCard(
-            hospital: _homeHospital,
-            onTap: () {
-              _goToHospitalScreen(context);
-            },
+          HoldToSpeak(
+            text:
+                '가까운 병원은 ${_homeHospital.hospitalName}, '
+                '거리는 ${_homeHospital.distance}입니다.',
+            child: HomeHospitalCard(
+              hospital: _homeHospital,
+              onTap: () => _goToHospitalScreen(context),
+            ),
           ),
 
           const SizedBox(height: 14),
 
           // 날씨 카드
-          HomeWeatherCard(
-            weather: _homeWeather,
-            onTap: () => _goToWeatherScreen(context),
-          ),
-
-          const SizedBox(height: 14),
-
-          // 지역 소식 카드
-          HomeNewsCard(
-            newsList: mockNewsList,
-            onTap: () => _goToNewsScreen(context),
+          HoldToSpeak(
+            text:
+                '현재 날씨는 ${_homeWeather.condition}, '
+                '기온은 ${_homeWeather.temperature}입니다.',
+            child: HomeWeatherCard(
+              weather: _homeWeather,
+              onTap: () => _goToWeatherScreen(context),
+            ),
           ),
         ],
       ),
@@ -383,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // SOS / 이음 / 설정
             // ==========================================
             AppTopBar(
-              title : '이음',
+              title: '이음',
               onSosTap: () {
                 showSosMenu(context);
               },

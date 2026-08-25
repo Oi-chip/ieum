@@ -92,6 +92,14 @@ class BusData {
   }
 }
 
+/// 버스 상세 화면을 닫을 때 목록 화면으로 전달하는 결과입니다.
+class BusDetailResult {
+  final BusData bus;
+  final String? searchBusNumber;
+
+  const BusDetailResult({required this.bus, this.searchBusNumber});
+}
+
 // 버스 노선에 포함된 정류장 정보
 class BusRouteStopData {
   final String stopId;

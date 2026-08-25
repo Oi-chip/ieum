@@ -22,12 +22,3 @@ const WeatherSummary mockWeather = WeatherSummary(
   temperature: '24°C',
   condition: '맑음',
 );
-
-const List<NewsSummary> mockNewsList = [
-  NewsSummary(
-    title: '봉화군 폭염 대비 안내 (임시)',
-  ),
-  NewsSummary(
-    title: '마을버스 운행시간 변경 안내 (임시)',
-  ),
-];

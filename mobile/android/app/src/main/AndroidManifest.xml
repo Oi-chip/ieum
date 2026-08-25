@@ -42,6 +42,10 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- Android 11 이상에서 설치된 TTS 엔진을 검색하기 위해 필요합니다. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>

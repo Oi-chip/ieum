@@ -38,18 +38,34 @@ class TtsService {
   // false = 아직 설정하지 않음
   // true  = 설정 완료
   bool _isInitialized = false;
+  Future<void>? _initializing;
+  int _requestId = 0;
 
   // ==========================================================
   // TTS의 기본 설정을 준비하는 함수
   // ==========================================================
   Future<void> initialize() async {
     // 이미 설정이 끝났다면 다시 설정하지 않고 종료합니다.
-    if (_isInitialized) {
-      return;
-    }
+    if (_isInitialized) return;
 
+    // 여러 화면에서 동시에 처음 호출되어도 초기화는 한 번만 수행합니다.
+    final initializing = _initializing;
+    if (initializing != null) return initializing;
+
+    final initialization = _initialize();
+    _initializing = initialization;
+    try {
+      await initialization;
+      _isInitialized = true;
+    } finally {
+      _initializing = null;
+    }
+  }
+
+  Future<void> _initialize() async {
     // 한국어 음성으로 읽도록 설정합니다.
     await _flutterTts.setLanguage('ko-KR');
+    await _selectKoreanMaleVoice();
 
     // 음량을 설정합니다.
     //
@@ -61,15 +77,52 @@ class TtsService {
     //
     // 숫자가 작을수록 천천히 읽습니다.
     // 더 빠르게 들리도록 속도를 높였습니다.
-    await _flutterTts.setSpeechRate(0.6);
+    await _flutterTts.setSpeechRate(0.52);
 
     // 목소리 높낮이를 설정합니다.
     //
-    // 1.0은 기본 높이입니다.
-    await _flutterTts.setPitch(0.8);
+    // 남성 음성이 자연스럽게 들리도록 기본값보다 조금 낮춥니다.
+    await _flutterTts.setPitch(0.9);
 
-    // 모든 설정이 완료되었음을 저장합니다.
-    _isInitialized = true;
+    await _flutterTts.awaitSpeakCompletion(true);
+  }
+
+  Future<void> _selectKoreanMaleVoice() async {
+    final voices = await _flutterTts.getVoices;
+    if (voices is! List) return;
+
+    final koreanVoices = voices
+        .whereType<Map>()
+        .map(
+          (voice) => Map<String, String>.fromEntries(
+            voice.entries.map(
+              (entry) => MapEntry(entry.key.toString(), entry.value.toString()),
+            ),
+          ),
+        )
+        .where(
+          (voice) =>
+              (voice['locale'] ?? '').toLowerCase().replaceAll('_', '-') ==
+              'ko-kr',
+        )
+        .toList();
+
+    if (koreanVoices.isEmpty) return;
+
+    // 엔진마다 음성 이름이 다르므로 남성 표기, Google 한국어 남성 음성,
+    // 설치된 첫 한국어 음성 순서로 안전하게 선택합니다.
+    final selectedVoice = koreanVoices.firstWhere(
+      (voice) {
+        final name = (voice['name'] ?? '').toLowerCase();
+        return name.contains('male') && !name.contains('female');
+      },
+      orElse: () => koreanVoices.firstWhere(
+        (voice) => (voice['name'] ?? '').toLowerCase().contains('koc'),
+        orElse: () => koreanVoices.first,
+      ),
+    );
+
+    await _flutterTts.setVoice(selectedVoice);
   }
 
   // ==========================================================
@@ -87,8 +140,13 @@ class TtsService {
       return;
     }
 
+    final requestId = ++_requestId;
+
     // TTS 설정이 아직 안 되어 있으면 먼저 설정합니다.
     await initialize();
+
+    // 초기화 중 더 최신 읽기/중지 요청이 들어왔으면 이 요청은 버립니다.
+    if (requestId != _requestId) return;
 
     // 이전에 읽고 있던 음성이 있으면 먼저 중지합니다.
     //
@@ -96,6 +154,8 @@ class TtsService {
     // "버스 시간표"를 읽는 도중
     // "병원 정보"를 누르면 이전 음성을 멈추고 새 글자를 읽습니다.
     await _flutterTts.stop();
+
+    if (requestId != _requestId) return;
 
     // 전달받은 글자를 음성으로 읽습니다.
     await _flutterTts.speak(textToSpeak);
@@ -105,6 +165,7 @@ class TtsService {
   // 현재 읽고 있는 음성을 중지하는 함수
   // ==========================================================
   Future<void> stop() async {
+    _requestId++;
     await _flutterTts.stop();
   }
 }

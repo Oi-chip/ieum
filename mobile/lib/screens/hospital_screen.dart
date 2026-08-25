@@ -1,3 +1,4 @@
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -6,6 +7,7 @@ import '../models/gps_location.dart';
 import '../services/api_service.dart';
 import '../services/call_service.dart';
 import '../services/selected_location_service.dart';
+import '../services/tts_service.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/sos_menu.dart';
@@ -44,18 +46,17 @@ class _HospitalScreenState extends State<HospitalScreen> {
 
   // 조회나 입력 오류를 화면 하단에 안내합니다.
   void _showTemporaryMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // 병원 검색
-  Future<void> _loadHospitals({String? keyword}) async {
+  Future<List<HospitalData>?> _loadHospitals({String? keyword}) async {
     setState(() => _isLoading = true);
     try {
-      final location = _location ??
+      final location =
+          _location ??
           await SelectedLocationService.instance.getLocation(
             requireRegion: true,
           );
@@ -64,18 +65,22 @@ class _HospitalScreenState extends State<HospitalScreen> {
         keyword: keyword,
       );
       if (widget.emergencyOnly) {
-        hospitals = hospitals.where((hospital) => hospital.hasEmergencyRoom).toList();
+        hospitals = hospitals
+            .where((hospital) => hospital.hasEmergencyRoom)
+            .toList();
       }
-      if (!mounted) return;
+      if (!mounted) return null;
       setState(() {
         _location = location;
         _displayedHospitals = hospitals;
         _isLoading = false;
       });
+      return hospitals;
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) return null;
       setState(() => _isLoading = false);
       _showTemporaryMessage(error.toString());
+      return null;
     }
   }
 
@@ -95,7 +100,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
   }
 
   // 병원 화면 음성 명령 처리
-  void _handleVoiceCommand(String text) {
+  Future<void> _handleVoiceCommand(String text) async {
     final command = text.toLowerCase().replaceAll(' ', '');
 
     if (command.contains('뒤로') ||
@@ -114,12 +119,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
 
     final keyword = text
         .replaceFirst(RegExp(r'^병원\s*검색\s*'), '')
-        .replaceAll(
-          RegExp(
-            r'(검색해\s*줘|검색|찾아\s*줘|알려\s*줘|보여\s*줘)$',
-          ),
-          '',
-        )
+        .replaceAll(RegExp(r'(검색해\s*줘|검색|찾아\s*줘|알려\s*줘|보여\s*줘)$'), '')
         .trim();
 
     if (keyword.isEmpty) {
@@ -128,7 +128,43 @@ class _HospitalScreenState extends State<HospitalScreen> {
     }
 
     _searchController.text = keyword;
-    _searchHospital();
+    await _searchHospitalByName(keyword);
+  }
+
+  Future<void> _searchHospitalByName(String keyword) async {
+    final hospitals = await _loadHospitals(keyword: keyword);
+    if (!mounted || hospitals == null) return;
+
+    final normalizedKeyword = keyword.toLowerCase().replaceAll(' ', '');
+    final exactMatches = hospitals
+        .where(
+          (hospital) =>
+              hospital.hospitalName.toLowerCase().replaceAll(' ', '') ==
+              normalizedKeyword,
+        )
+        .toList();
+    final directMatch = exactMatches.length == 1
+        ? exactMatches.first
+        : hospitals.length == 1
+        ? hospitals.first
+        : null;
+
+    if (hospitals.isEmpty) {
+      final guide = '$keyword 검색 결과가 없습니다.';
+      _showTemporaryMessage(guide);
+      unawaited(TtsService.instance.speak(guide));
+      return;
+    }
+
+    if (directMatch != null) {
+      unawaited(
+        TtsService.instance.speak('${directMatch.hospitalName}을 찾았습니다.'),
+      );
+      await _openHospitalDetail(directMatch);
+      return;
+    }
+
+    unawaited(TtsService.instance.speak('$keyword 검색 결과를 표시합니다.'));
   }
 
   // 병원 전화하기
@@ -136,9 +172,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
     final phoneNumber = hospital.phoneNumber;
 
     if (phoneNumber == null || phoneNumber.trim().isEmpty) {
-      _showTemporaryMessage(
-        '등록된 전화번호가 없습니다.',
-      );
+      _showTemporaryMessage('등록된 전화번호가 없습니다.');
       return;
     }
 
@@ -149,22 +183,22 @@ class _HospitalScreenState extends State<HospitalScreen> {
     }
 
     if (!success) {
-      _showTemporaryMessage(
-        '전화 앱을 실행하지 못했습니다.',
-      );
+      _showTemporaryMessage('전화 앱을 실행하지 못했습니다.');
     }
   }
 
   // 병원 상세화면 이동
-  void _openHospitalDetail(HospitalData hospital) {
-    Navigator.push(
+  Future<void> _openHospitalDetail(HospitalData hospital) async {
+    final searchKeyword = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder: (context) => HospitalDetailScreen(
-          hospital: hospital,
-        ),
+        builder: (context) => HospitalDetailScreen(hospital: hospital),
       ),
     );
+
+    if (!mounted || searchKeyword == null) return;
+    _searchController.text = searchKeyword;
+    await _searchHospitalByName(searchKeyword);
   }
 
   @override
@@ -191,9 +225,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
               },
             ),
 
-            const Divider(
-              height: 1,
-            ),
+            const Divider(height: 1),
 
             Expanded(
               child: SingleChildScrollView(
@@ -230,18 +262,12 @@ class _HospitalScreenState extends State<HospitalScreen> {
   Widget _buildLocationSection() {
     return Row(
       children: [
-        Icon(
-          Icons.location_on,
-          size: 26,
-        ),
+        Icon(Icons.location_on, size: 26),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             '조회 지역 : ${_location?.displayName ?? '확인 중'}',
-            style: const TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
           ),
         ),
       ],
@@ -255,10 +281,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
       children: [
         const Text(
           '병원 검색',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
 
         const SizedBox(height: 10),
@@ -274,15 +297,11 @@ class _HospitalScreenState extends State<HospitalScreen> {
                 },
                 decoration: InputDecoration(
                   hintText: '병원 이름을 입력해 주세요.',
-                  prefixIcon: const Icon(
-                    Icons.search,
-                  ),
+                  prefixIcon: const Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           onPressed: _clearSearch,
-                          icon: const Icon(
-                            Icons.close,
-                          ),
+                          icon: const Icon(Icons.close),
                         )
                       : null,
                   filled: true,
@@ -305,10 +324,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
                 onPressed: _searchHospital,
                 child: const Text(
                   '검색',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -327,10 +343,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
       return const SizedBox(
         width: double.infinity,
         child: Padding(
-          padding: EdgeInsets.symmetric(
-            vertical: 40,
-            horizontal: 20,
-          ),
+          padding: EdgeInsets.symmetric(vertical: 40, horizontal: 20),
           child: Column(
             children: [
               Icon(
@@ -342,10 +355,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
               Text(
                 '검색 결과가 없습니다.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.black54,
-                ),
+                style: TextStyle(fontSize: 18, color: Colors.black54),
               ),
             ],
           ),
@@ -353,35 +363,23 @@ class _HospitalScreenState extends State<HospitalScreen> {
       );
     }
 
-    final sortedHospitals = List<HospitalData>.from(
-      _displayedHospitals,
-    )..sort(
-        (a, b) => a.distanceKm.compareTo(
-          b.distanceKm,
-        ),
-      );
+    final sortedHospitals = List<HospitalData>.from(_displayedHospitals)
+      ..sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
 
     return Column(
       children: [
-        for (int index = 0;
-            index < sortedHospitals.length;
-            index++) ...[
+        for (int index = 0; index < sortedHospitals.length; index++) ...[
           HospitalCard(
             hospital: sortedHospitals[index],
             onTap: () {
-              _openHospitalDetail(
-                sortedHospitals[index],
-              );
+              _openHospitalDetail(sortedHospitals[index]);
             },
             onCallTap: () {
-              _callHospital(
-                sortedHospitals[index],
-              );
+              _callHospital(sortedHospitals[index]);
             },
           ),
 
-          if (index != sortedHospitals.length - 1)
-            const SizedBox(height: 14),
+          if (index != sortedHospitals.length - 1) const SizedBox(height: 14),
         ],
       ],
     );
@@ -390,16 +388,9 @@ class _HospitalScreenState extends State<HospitalScreen> {
   // 공통 음성 인식 버튼
   Widget _buildVoiceButton() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        16,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       color: const Color(0xFFF8FAFC),
-      child: VoiceButton(
-        onResult: _handleVoiceCommand,
-      ),
+      child: VoiceButton(onResult: _handleVoiceCommand),
     );
   }
 
@@ -412,23 +403,14 @@ class _HospitalScreenState extends State<HospitalScreen> {
         onPressed: () {
           Navigator.pop(context);
         },
-        icon: const Icon(
-          Icons.home_outlined,
-          size: 26,
-        ),
+        icon: const Icon(Icons.home_outlined, size: 26),
         label: const Text(
           '홈 화면으로',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.black87,
-          side: const BorderSide(
-            color: Color(0xFF90CAF9),
-            width: 2,
-          ),
+          side: const BorderSide(color: Color(0xFF90CAF9), width: 2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -436,5 +418,4 @@ class _HospitalScreenState extends State<HospitalScreen> {
       ),
     );
   }
-
 }

@@ -59,10 +59,6 @@ def get_services():
                     "name": "병원·약국",
                 },
                 {
-                    "id": "village",
-                    "name": "마을 소식",
-                },
-                {
                     "id": "weather",
                     "name": "날씨",
                 },
