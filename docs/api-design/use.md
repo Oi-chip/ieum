@@ -1,11 +1,12 @@
-# 예시
+# API 사용 예시
 
-# 항목	        내용
-# 엔드포인트:	 GET /api/bus/search
-# 요청:         파라미터 	origin(출발지, 문자열), destination(도착지, 문자열), date(날짜, YYYY-MM-DD, 선택)
-# 성공 응답:	 { "success": true, "data": [{ "route_name": "...",  "scheduled_departure": "09:20", ... }], "source": "...", "updated_at": "..." }
-# 실패 응답:	 { "success": false, "error": { "code": "BUS_DATA_UNAVAILABLE", "message": "..." } }
-# 담당:	         Backend: OO / Frontend: OO
+실제 엔드포인트와 응답 형식은 [버스 API 설계](bus.md)를 참고합니다.
 
+버스 직통 검색은 좌표 기준 출발지와 문자열 목적지를 사용합니다.
 
-# 기능별로 엔드포인트, 요청 파라미터, 응답 예시를 표로 정리.
+```text
+GET /api/bus/search?latitude=36.89101&longitude=128.7331261&destination=영주
+```
+
+TAGO 시내버스 API는 날짜별 출발 시각표를 제공하지 않습니다. 앱은 API가
+제공하는 첫차·막차, 요일별 배차간격과 실시간 도착 예정정보만 표시합니다.

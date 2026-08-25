@@ -8,8 +8,10 @@ if __package__ == "server.routes":
         BusServiceError,
         get_bus_arrivals,
         get_bus_route,
+        get_nearby_bus_overview,
         get_nearby_stops,
         get_stop_routes,
+        search_bus_routes,
     )
 else:
     from services.bus_service import (
@@ -17,8 +19,10 @@ else:
         BusServiceError,
         get_bus_arrivals,
         get_bus_route,
+        get_nearby_bus_overview,
         get_nearby_stops,
         get_stop_routes,
+        search_bus_routes,
     )
 
 
@@ -117,6 +121,81 @@ def _parse_route():
 
     return (city_code, route_id), None
 
+def _parse_destination():
+    destination = request.args.get(
+        "destination",
+        "",
+    ).strip()
+
+    if not destination:
+        return None, _error_response(
+            "MISSING_DESTINATION",
+            "도착지역을 입력해 주세요.",
+            400,
+        )
+
+    if len(destination) > 50:
+        return None, _error_response(
+            "INVALID_DESTINATION",
+            "도착지역 입력값이 너무 깁니다.",
+            400,
+        )
+
+    return destination, None
+
+def _parse_bus_search():
+    location, error = _parse_location()
+    if error is not None:
+        return None, error
+
+    destination = request.args.get("destination", "").strip()
+    if not destination:
+        return None, _error_response(
+            "MISSING_DESTINATION",
+            "도착지를 입력해 주세요.",
+            400,
+        )
+    if len(destination) > 80 or not any(
+        character.isalnum() for character in destination
+    ):
+        return None, _error_response(
+            "INVALID_DESTINATION",
+            "도착지는 80자 이하로 입력해 주세요.",
+            400,
+        )
+
+    origin_stop_id = request.args.get("origin_stop_id", "").strip() or None
+    origin_city_code = request.args.get("origin_city_code", "").strip() or None
+    if (origin_stop_id is None) != (origin_city_code is None):
+        return None, _error_response(
+            "INVALID_ORIGIN_STOP",
+            "출발 정류장 ID와 도시 코드를 함께 입력해 주세요.",
+            400,
+        )
+    if origin_stop_id is not None and (
+        not origin_stop_id.isalnum() or len(origin_stop_id) > 30
+    ):
+        return None, _error_response(
+            "INVALID_ORIGIN_STOP",
+            "출발 정류장 ID가 올바르지 않습니다.",
+            400,
+        )
+    if origin_city_code is not None and (
+        not origin_city_code.isdigit() or len(origin_city_code) > 9
+    ):
+        return None, _error_response(
+            "INVALID_ORIGIN_STOP",
+            "출발 정류장 도시 코드가 올바르지 않습니다.",
+            400,
+        )
+
+    return (
+        *location,
+        destination,
+        origin_stop_id,
+        origin_city_code,
+    ), None
+
 
 @bus_blueprint.get("/nearby")
 def nearby_bus_stops():
@@ -147,6 +226,36 @@ def nearby_bus_stops():
             "stops": stops,
         },
         "message": "가까운 버스정류장을 조회했습니다.",
+        "source": "국토교통부 TAGO",
+        "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    })
+
+
+@bus_blueprint.get("/overview")
+def nearby_bus_overview():
+    location, error = _parse_location()
+    if error is not None:
+        return error
+
+    try:
+        overview = get_nearby_bus_overview(*location)
+    except BusConfigurationError:
+        return _error_response(
+            "BUS_API_KEY_MISSING",
+            "서버에 버스 API 키가 설정되지 않았습니다.",
+            500,
+        )
+    except BusServiceError:
+        return _error_response(
+            "BUS_DATA_UNAVAILABLE",
+            "주변 버스 노선을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            502,
+        )
+
+    return jsonify({
+        "success": True,
+        "data": overview,
+        "message": "주변 모든 정류장의 버스 노선을 조회했습니다.",
         "source": "국토교통부 TAGO",
         "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     })
@@ -261,6 +370,49 @@ def stop_routes():
             "routes": routes,
         },
         "message": "정류장을 지나는 버스 목록을 조회했습니다.",
+        "source": "국토교통부 TAGO",
+        "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    })
+
+
+@bus_blueprint.get("/search")
+def search_direct_bus_routes():
+    search_query, error = _parse_bus_search()
+    if error is not None:
+        return error
+
+    (
+        latitude,
+        longitude,
+        destination,
+        origin_stop_id,
+        origin_city_code,
+    ) = search_query
+    try:
+        result = search_bus_routes(
+            latitude,
+            longitude,
+            destination,
+            origin_stop_id,
+            origin_city_code,
+        )
+    except BusConfigurationError:
+        return _error_response(
+            "BUS_API_KEY_MISSING",
+            "서버에 버스 API 키가 설정되지 않았습니다.",
+            500,
+        )
+    except BusServiceError:
+        return _error_response(
+            "BUS_DATA_UNAVAILABLE",
+            "출발지에서 도착지까지의 버스 노선을 확인하지 못했습니다.",
+            502,
+        )
+
+    return jsonify({
+        "success": True,
+        "data": result,
+        "message": "출발지에서 도착지까지 운행하는 직통 버스를 조회했습니다.",
         "source": "국토교통부 TAGO",
         "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     })
