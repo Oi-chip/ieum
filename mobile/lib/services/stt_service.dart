@@ -18,6 +18,7 @@ class SttService {
   final SpeechToText _speech = SpeechToText();
 
   bool _isAvailable = false;
+  Future<bool>? _initializing;
   String? _koreanLocaleId;
   SttResultCallback? _onResult;
   SttListeningCallback? _onListeningChanged;
@@ -29,10 +30,21 @@ class SttService {
   /// 음성 인식 가능 여부와 마이크 권한을 확인합니다.
   /// 첫 실행 시 Android가 사용자에게 마이크 권한을 물어볼 수 있습니다.
   Future<bool> initialize() async {
-    if (_isAvailable) {
-      return true;
-    }
+    if (_isAvailable) return true;
 
+    final initializing = _initializing;
+    if (initializing != null) return initializing;
+
+    final initialization = _initialize();
+    _initializing = initialization;
+    try {
+      return await initialization;
+    } finally {
+      _initializing = null;
+    }
+  }
+
+  Future<bool> _initialize() async {
     try {
       _isAvailable = await _speech.initialize(
         onStatus: _handleStatus,
@@ -112,8 +124,13 @@ class SttService {
 
   /// 현재 인식 결과를 버리고 듣기를 취소합니다.
   Future<void> cancelListening() async {
-    if (_speech.isListening) {
-      await _speech.cancel();
+    try {
+      if (_speech.isListening) {
+        await _speech.cancel();
+      }
+    } finally {
+      _onListeningChanged?.call(false);
+      _clearCallbacks();
     }
   }
 
@@ -135,10 +152,7 @@ class SttService {
   void _handleError(SpeechRecognitionError error) {
     _onListeningChanged?.call(false);
     _onError?.call(_messageForError(error.errorMsg));
-
-    if (error.permanent) {
-      _clearCallbacks();
-    }
+    _clearCallbacks();
   }
 
   void _clearCallbacks() {

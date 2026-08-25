@@ -28,26 +28,12 @@ class HospitalSummary {
   final String hospitalName;
   final String distance;
 
-  const HospitalSummary({
-    required this.hospitalName,
-    required this.distance,
-  });
+  const HospitalSummary({required this.hospitalName, required this.distance});
 }
 
 class WeatherSummary {
   final String temperature;
   final String condition;
 
-  const WeatherSummary({
-    required this.temperature,
-    required this.condition,
-  });
-}
-
-class NewsSummary {
-  final String title;
-
-  const NewsSummary({
-    required this.title,
-  });
+  const WeatherSummary({required this.temperature, required this.condition});
 }

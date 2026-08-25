@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
@@ -24,6 +26,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
   _WeatherData? _weather;
   String? _errorMessage;
   bool _isLoading = true;
+  bool _hasAnnouncedInitialWeather = false;
 
   @override
   void initState() {
@@ -50,7 +53,14 @@ class _WeatherScreenState extends State<WeatherScreen> {
         ny: grid.ny,
       );
       if (!mounted) return;
-      setState(() => _weather = _WeatherData.fromJson(json));
+      final weather = _WeatherData.fromJson(json);
+      setState(() => _weather = weather);
+
+      if (!_hasAnnouncedInitialWeather &&
+          DateUtils.isSameDay(_selectedDate, _today)) {
+        _hasAnnouncedInitialWeather = true;
+        unawaited(_speakWeather(weather));
+      }
     } on ApiException catch (error) {
       if (!mounted) {
         return;
