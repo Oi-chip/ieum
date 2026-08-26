@@ -16,36 +16,38 @@ class AppTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final actionWidth = onBackTap == null ? 100.0 : 80.0;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
         children: [
-          if (onBackTap != null) ...[
-            BackButton(onPressed: onBackTap),
-            const SizedBox(width: 4),
-          ],
           SizedBox(
-            width: actionWidth,
-            child: ElevatedButton(
-              onPressed: onSosTap,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text(
-                'SOS',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-            ),
+            width: 100,
+            child: onBackTap != null
+                ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: BackButton(onPressed: onBackTap),
+                  )
+                : ElevatedButton(
+                    onPressed: onSosTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'SOS',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
           ),
 
           Expanded(
@@ -64,7 +66,7 @@ class AppTopBar extends StatelessWidget {
           ),
 
           SizedBox(
-            width: actionWidth,
+            width: 100,
             child: OutlinedButton(
               onPressed: onSettingsTap,
               style: OutlinedButton.styleFrom(
@@ -86,7 +88,6 @@ class AppTopBar extends StatelessWidget {
               ),
             ),
           ),
-          if (onBackTap != null) const SizedBox(width: 52),
         ],
       ),
     );
