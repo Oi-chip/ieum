@@ -5,10 +5,6 @@ import 'package:flutter/material.dart';
 import '../services/stt_service.dart';
 import '../services/tts_service.dart';
 
-/// 앱에서 공통으로 사용하는 음성 인식 버튼입니다.
-///
-/// 버튼을 누르면 한국어 음성 인식을 시작하고, 최종 인식 문장을
-/// [onResult]로 현재 화면에 전달합니다. 듣는 중 다시 누르면 종료합니다.
 class VoiceButton extends StatefulWidget {
   final ValueChanged<String> onResult;
 
@@ -41,7 +37,7 @@ class _VoiceButtonState extends State<VoiceButton> {
       _recognizedText = '';
     });
 
-    // TTS 음성을 STT가 다시 받아 적지 않도록 먼저 음성 안내를 멈춥니다.
+    // 안내 음성이 인식 결과에 섞이지 않게 먼저 멈춘다.
     await TtsService.instance.stop();
 
     final started = await SttService.instance.startListening(
@@ -64,8 +60,7 @@ class _VoiceButtonState extends State<VoiceButton> {
           if (isListening) _isBusy = false;
         });
 
-        // 일부 음성 인식기는 최종 결과 표시 없이 듣기를 끝냅니다.
-        // 이때 마지막 중간 결과를 버리지 않고 명령으로 실행합니다.
+        // final 결과가 없는 기기에서는 마지막 중간 결과를 사용한다.
         if (!isListening && _recognizedText.isNotEmpty && !_resultDelivered) {
           _resultDelivered = true;
           unawaited(_finishWithResult(_recognizedText));
@@ -95,8 +90,6 @@ class _VoiceButtonState extends State<VoiceButton> {
   }
 
   Future<void> _finishWithResult(String text) async {
-    // 마이크가 완전히 닫힌 뒤 명령을 실행해야 이어지는 TTS 안내를
-    // STT가 다시 받아 적지 않습니다.
     await SttService.instance.stopListening();
     if (mounted) widget.onResult(text);
   }

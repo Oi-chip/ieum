@@ -36,7 +36,6 @@ class HospitalCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 병원 이름
                   Text(
                     hospital.hospitalName,
                     maxLines: 2,
@@ -49,7 +48,6 @@ class HospitalCard extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  // 거리
                   Text(
                     '${hospital.distanceKm.toStringAsFixed(1)}km',
                     style: const TextStyle(
@@ -81,7 +79,6 @@ class HospitalCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 진료 여부
                   Row(
                     children: [
                       Icon(
@@ -110,7 +107,6 @@ class HospitalCard extends StatelessWidget {
 
                   const SizedBox(height: 10),
 
-                  // 운영 시간
                   Text(
                     hospital.operatingTime,
                     style: const TextStyle(
@@ -121,7 +117,6 @@ class HospitalCard extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  // 전화하기
                   TextButton.icon(
                     onPressed: onCallTap,
                     icon: const Icon(

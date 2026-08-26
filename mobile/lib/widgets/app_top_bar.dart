@@ -4,28 +4,30 @@ class AppTopBar extends StatelessWidget {
   final String title;
   final VoidCallback onSosTap;
   final VoidCallback onSettingsTap;
+  final VoidCallback? onBackTap;
 
   const AppTopBar({
     super.key,
     required this.title,
     required this.onSosTap,
     required this.onSettingsTap,
+    this.onBackTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final actionWidth = onBackTap == null ? 100.0 : 80.0;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        12,
-        16,
-        8,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
         children: [
-          // SOS 버튼
+          if (onBackTap != null) ...[
+            BackButton(onPressed: onBackTap),
+            const SizedBox(width: 4),
+          ],
           SizedBox(
-            width: 100,
+            width: actionWidth,
             child: ElevatedButton(
               onPressed: onSosTap,
               style: ElevatedButton.styleFrom(
@@ -41,30 +43,28 @@ class AppTopBar extends StatelessWidget {
               ),
               child: const Text(
                 'SOS',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
           ),
 
-          // 화면 제목
           Expanded(
             child: Center(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
           ),
 
-          // 설정 버튼
           SizedBox(
-            width: 100,
+            width: actionWidth,
             child: OutlinedButton(
               onPressed: onSettingsTap,
               style: OutlinedButton.styleFrom(
@@ -76,22 +76,17 @@ class AppTopBar extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.settings,
-                    size: 18,
-                  ),
+                  Icon(Icons.settings, size: 18),
                   SizedBox(width: 4),
                   Text(
                     '설정',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
             ),
           ),
+          if (onBackTap != null) const SizedBox(width: 52),
         ],
       ),
     );

@@ -39,7 +39,6 @@ List<String> _stringList(dynamic value) {
   return value.map(_stringValue).whereType<String>().toList(growable: false);
 }
 
-// 가까운 버스 정류장 정보
 class BusStopData {
   final String stopId;
   final String cityCode;
@@ -80,7 +79,6 @@ BusStopData? _nestedStop(dynamic value, {String? fallbackCityCode}) {
   return BusStopData.fromJson(json, fallbackCityCode: fallbackCityCode);
 }
 
-// 버스 목록 카드와 검색 결과에 표시할 정보
 class BusData {
   final String routeId;
   final String? cityCode;
@@ -95,13 +93,11 @@ class BusData {
   final BusStopData? boardingStop;
   final BusStopData? destinationStop;
 
-  // 검색했을 때 실제로 일치한 목적지 정류장 이름
   final String? matchedStop;
   final int? boardingOrder;
   final int? destinationOrder;
   final int? stopsBetween;
 
-  // 현재 정류장까지 남은 정류장 수와 도착 예상 시간
   final int? remainingStops;
   final int? arrivalMinutes;
   final String? vehicleType;
@@ -112,11 +108,9 @@ class BusData {
   final int? saturdayIntervalMinutes;
   final int? sundayIntervalMinutes;
 
-  // 일부 외부 API를 사용할 수 없을 때 결과의 완전성을 표시합니다.
   final bool dataComplete;
   final List<String> unavailableFields;
 
-  // 즐겨찾기 여부
   final bool isFavorite;
 
   const BusData({
@@ -147,9 +141,9 @@ class BusData {
     this.isFavorite = false,
   }) : apiBusNumber = apiBusNumber ?? busNumber;
 
-  /// TAGO 노선 ID는 제공 도시 코드와 함께 사용할 때 고유합니다.
   String get routeKey {
     final normalizedCityCode = cityCode?.trim();
+    // TAGO routeId는 도시 코드까지 묶어야 고유하다.
     return normalizedCityCode == null || normalizedCityCode.isEmpty
         ? routeId
         : '$normalizedCityCode:$routeId';
@@ -213,7 +207,6 @@ class BusData {
     );
   }
 
-  // 새 객체를 만들 때 API에서 받은 필드가 소실되지 않게 모두 전달합니다.
   BusData copyWith({
     String? routeId,
     String? cityCode,
@@ -274,7 +267,6 @@ class BusData {
   }
 }
 
-/// 버스 상세 화면을 닫을 때 목록 화면으로 전달하는 결과입니다.
 class BusDetailResult {
   final BusData bus;
   final String? searchBusNumber;
@@ -282,7 +274,6 @@ class BusDetailResult {
   const BusDetailResult({required this.bus, this.searchBusNumber});
 }
 
-// 버스 노선에 포함된 정류장 정보
 class BusRouteStopData {
   final String stopId;
   final String stopName;
@@ -423,7 +414,6 @@ class BusSearchData {
   }
 }
 
-// 버스 상세정보 화면 데이터
 class BusDetailData {
   final BusStopData nearbyStop;
   final BusData bus;

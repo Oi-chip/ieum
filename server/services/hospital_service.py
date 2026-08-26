@@ -112,7 +112,7 @@ def _request_hospital_page(params, page_no=1, num_of_rows=UPSTREAM_PAGE_SIZE):
         )
         response.raise_for_status()
     except requests.RequestException:
-        # requests 오류에는 API 키가 포함된 전체 요청 주소가 들어갈 수 있습니다.
+        # 요청 URL에 API 키가 들어 있으므로 원본 예외를 연결하지 않는다.
         raise HospitalServiceError("병원 API 요청에 실패했습니다.") from None
 
     return _parse_hospital_response(response.content)

@@ -39,8 +39,7 @@ BUS_CITY_CODE_API_URL = (
 REQUEST_TIMEOUT_SECONDS = 10
 ARRIVAL_REQUEST_TIMEOUT_SECONDS = 4
 EARTH_RADIUS_METERS = 6_371_000
-# TAGO accepts 1,000 rows for station and route-stop lists. Fewer pages preserve
-# the daily request quota while totalCount-based pagination still handles larger results.
+# TAGO 목록 API는 페이지당 최대 1,000건을 받는다.
 API_PAGE_SIZE = 1_000
 MAX_API_ITEMS = 10_000
 BUS_SEARCH_WORKERS = 4
@@ -51,15 +50,13 @@ STOP_ROUTES_CACHE_TTL_SECONDS = 5 * 60
 ARRIVAL_CACHE_TTL_SECONDS = 15
 CITY_CODE_CACHE_TTL_SECONDS = 24 * 60 * 60
 
-# TAGO는 시 경계를 넘는 노선을 운행 주체의 도시코드로만 반환합니다.
-# 봉화 정류장 ID를 봉화군 코드로만 조회하면 영주시 33/533번 노선이 누락됩니다.
+# 시 경계 노선은 운행 주체의 도시 코드까지 조회해야 빠지지 않는다.
 ROUTE_PROVIDER_CITY_CODES = {
     "37410": ("37060",),
     "37060": ("37410",),
 }
 
-# TAGO returns an outdated route number for this Bonghwa-to-Yeongju route.
-# Keep the number shown in the app aligned with the current local route number.
+# TAGO의 예전 노선 번호를 현재 지역 노선 번호로 보정한다.
 ROUTE_NUMBER_OVERRIDES = {
     ("37410", "TSB371000049"): "33",
 }
@@ -246,8 +243,7 @@ def _request_bus_api(url, params, timeout_seconds=REQUEST_TIMEOUT_SECONDS):
                 or response.status_code >= 500
             ):
                 continue
-            # requests 오류에는 API 키가 포함된 전체 요청 주소가 들어갈 수 있습니다.
-            # 원본 오류를 연결하지 않아 전체 traceback에서도 키가 노출되지 않게 합니다.
+            # 요청 URL에 API 키가 들어 있으므로 원본 예외를 연결하지 않는다.
             raise BusServiceError("버스 API 요청에 실패했습니다.") from None
 
 
@@ -267,7 +263,7 @@ def get_nearby_stops(latitude, longitude):
             stop_name = str(item["nodenm"])
             city_code = str(item["citycode"])
         except (KeyError, TypeError, ValueError):
-            # 필수 정보가 없는 정류장은 앱에 잘못된 데이터를 보내지 않고 제외합니다.
+            # 필수 값이 빠진 정류장은 결과에서 뺀다.
             continue
 
         stop_number = item.get("nodeno")
@@ -493,8 +489,7 @@ def _load_route_stops(city_code, route_id):
 
         stops.append(stop)
 
-    # TAGO의 updowncd는 순환노선 중간에 바뀌거나 문서 밖 값(2)을 줄 수 있습니다.
-    # 실제 탑승 순서는 노선 전체에서 증가하는 nodeord를 기준으로 판단합니다.
+    # updowncd는 순환 구간에서 흔들려서 nodeord로 순서를 맞춘다.
     return sorted(stops, key=lambda stop: stop["order"])
 
 
@@ -625,7 +620,7 @@ def clear_bus_route_cache():
 def _load_stop_routes_for_provider(provider_city_code, stop_id):
     route_items = _get_all_response_items(BUS_STOP_ROUTES_API_URL, {
         "cityCode": provider_city_code,
-        # 이 오퍼레이션은 다른 TAGO API와 달리 소문자 nodeid를 사용합니다.
+        # 이 API만 정류장 키가 소문자 nodeid다.
         "nodeid": stop_id,
     })
     routes = []
@@ -789,7 +784,7 @@ def _load_stop_bundle(
                 continue
 
             for arrival in arrivals:
-                # Each provider response is sorted fastest first.
+                # 공급기관별 응답은 도착이 빠른 순서다.
                 arrivals_by_route.setdefault(
                     (provider_city_code, arrival["route_id"]),
                     arrival,

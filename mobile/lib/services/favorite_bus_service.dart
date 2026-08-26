@@ -35,7 +35,6 @@ class FavoriteBusService {
     );
   }
 
-  // Legacy route IDs remain readable while new values use provider:routeId.
   static Future<Set<String>> getFavoriteRouteIds() {
     return _serialize(() async {
       final preferences = await SharedPreferences.getInstance();
@@ -81,6 +80,7 @@ class FavoriteBusService {
     return _serialize(() async {
       final preferences = await SharedPreferences.getInstance();
       final favoriteRouteIds = _read(preferences);
+      // 예전 routeId 형식도 읽고, 새 값은 provider:routeId로 저장한다.
       final wasFavorite =
           favoriteRouteIds.contains(routeKey) ||
           (legacyRouteId != null && favoriteRouteIds.contains(legacyRouteId));

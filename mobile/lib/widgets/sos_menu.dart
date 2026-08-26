@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/hospital_screen.dart';
 import '../services/call_service.dart';
 
-// SOS 실행에 실패했을 때 사용자에게 원인을 안내합니다.
 void _showTemporaryMessage(
   BuildContext context,
   String message,
@@ -16,7 +15,6 @@ void _showTemporaryMessage(
   );
 }
 
-// 앱 전체에서 공통으로 사용하는 SOS 선택창
 void showSosMenu(BuildContext context) {
   showModalBottomSheet(
     context: context,
@@ -45,7 +43,6 @@ void showSosMenu(BuildContext context) {
               ),
               const SizedBox(height: 24),
 
-              // 119
               ListTile(
                 leading: const Icon(
                   Icons.local_phone,
@@ -70,7 +67,6 @@ void showSosMenu(BuildContext context) {
 
               const Divider(),
 
-              // 보호자
               ListTile(
                 leading: const Icon(
                   Icons.person,
@@ -98,7 +94,6 @@ void showSosMenu(BuildContext context) {
 
               const Divider(),
 
-              // 가까운 응급실
               ListTile(
                 leading: const Icon(
                   Icons.local_hospital,

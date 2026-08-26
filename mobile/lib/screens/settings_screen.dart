@@ -32,7 +32,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     loadSelectedFontSize();
   }
 
-  // 저장된 긴급 연락망 불러오기
   Future<void> loadEmergencyContact() async {
     final String contact =
         await preferences.getString(emergencyContactKey) ?? '';
@@ -44,7 +43,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     emergencyContactController.text = contact;
   }
 
-  // 저장된 지역 불러오기
   Future<void> loadSelectedRegion() async {
     final String? region = await preferences.getString(selectedRegionKey);
     if (!mounted || region == null) {
@@ -56,7 +54,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // 저장된 글씨 크기 불러오기
   Future<void> loadSelectedFontSize() async {
     final int? fontSize = await preferences.getInt(selectedFontSizeKey);
     if (!mounted || fontSize == null) {
@@ -72,7 +69,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // 글씨 크기 변경하고 저장하기
   Future<void> updateFontSize(int fontSize) async {
     await preferences.setInt(selectedFontSizeKey, fontSize);
 
@@ -87,7 +83,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // 긴급 연락망 저장하기
   Future<void> saveEmergencyContact() async {
     final String contact = emergencyContactController.text.trim();
 
@@ -122,7 +117,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.all(20.0),
           child: ListView(
             children: [
-              // 글씨 크기 박스
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -144,7 +138,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        // 글씨 크기 줄이기 버튼
                         IconButton(
                           onPressed: selectedFontSize > 0
                               ? () {
@@ -158,7 +151,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
 
-                        // 1단계
                         Text(
                           '가',
                           style: TextStyle(
@@ -172,7 +164,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
 
-                        // 2단계
                         Text(
                           '가',
                           style: TextStyle(
@@ -186,7 +177,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
 
-                        // 3단계
                         Text(
                           '가',
                           style: TextStyle(
@@ -200,7 +190,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
 
-                        // 4단계
                         Text(
                           '가',
                           style: TextStyle(
@@ -214,7 +203,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
 
-                        // 글씨 크기 키우기 버튼
                         IconButton(
                           onPressed: selectedFontSize < 3
                               ? () {
@@ -232,7 +220,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 20),
 
-              // 긴급연락망 박스
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -290,7 +277,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 20),
 
-              // 지역 설정 박스
               InkWell(
                 onTap: () async {
                   final String? region = await Navigator.push<String>(

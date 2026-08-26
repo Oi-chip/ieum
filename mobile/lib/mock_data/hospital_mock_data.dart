@@ -19,7 +19,7 @@ const List<HospitalData> mockHospitalList = [
     openTime: '08:00',
     closeTime: '16:30',
     distanceKm: 1.8,
-    phoneNumber: null, //테스트용
+    phoneNumber: null,
     address: '경상북도 봉화군 봉화읍 내성로 000 (임시)',
   ),
   HospitalData(

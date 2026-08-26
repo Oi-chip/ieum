@@ -7,10 +7,8 @@ class DistrictSelectionScreen extends StatelessWidget {
     required this.districts,
   });
 
-  // 앞 화면에서 선택한 도
   final String province;
 
-  // 선택한 도의 시·군·구 목록
   final List<String> districts;
 
   @override

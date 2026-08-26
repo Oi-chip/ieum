@@ -56,7 +56,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     _loadRoute();
   }
 
-  // 버스 노선 정보 불러오기
   Future<void> _loadRoute() async {
     if (mounted) {
       setState(() {
@@ -93,7 +92,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     }
   }
 
-  // 휴대폰에 저장된 즐겨찾기 상태 불러오기
   Future<void> _loadFavorite() async {
     final isFavorite = await FavoriteBusService.isFavorite(
       widget.bus.routeId,
@@ -108,7 +106,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     });
   }
 
-  // 간단한 안내 메시지 표시
   void _showTemporaryMessage(String message) {
     if (!mounted) {
       return;
@@ -121,7 +118,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 즐겨찾기 추가 또는 해제
   Future<void> _toggleFavorite() {
     final activeUpdate = _favoriteUpdateFuture;
 
@@ -140,7 +136,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     return update;
   }
 
-  // 실제 즐겨찾기 변경 처리
   Future<void> _performFavoriteUpdate() async {
     if (!mounted) {
       return;
@@ -178,11 +173,9 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     }
   }
 
-  // 버스 상세 화면 음성 명령 처리
   Future<void> _handleVoiceCommand(String text) async {
     final command = text.toLowerCase().replaceAll(' ', '');
 
-    // 뒤로가기 또는 목록으로 이동
     if (command.contains('뒤로') ||
         command.contains('목록') ||
         command.contains('나가기')) {
@@ -190,7 +183,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       return;
     }
 
-    // 즐겨찾기 명령
     if (command.contains('즐겨찾기')) {
       final wantsRemoval =
           command.contains('해제') ||
@@ -230,7 +222,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       return;
     }
 
-    // 다른 버스 번호 검색
     final busNumberMatch = RegExp(
       r'(\d+(?:\s*-\s*\d+)?)\s*번(?:\s*버스)?',
     ).firstMatch(text);
@@ -253,7 +244,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 버스 목록 화면으로 돌아가기
   Future<void> _goBackToBusList({
     String? searchBusNumber,
   }) async {
@@ -267,7 +257,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
       });
     }
 
-    // 즐겨찾기 저장 중이면 완료될 때까지 기다림
     final favoriteUpdate = _favoriteUpdateFuture;
 
     if (favoriteUpdate != null) {
@@ -377,7 +366,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 승차 정류장 표시
   Widget _buildNearbyStopSection(
     BusDetailData detail,
   ) {
@@ -426,7 +414,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 선택한 버스 요약정보
   Widget _buildBusSummarySection(
     BusDetailData detail,
   ) {
@@ -554,7 +541,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 첫차, 막차, 배차간격 표시
   Widget _buildRouteTimeSection(
     BusDetailData detail,
   ) {
@@ -634,7 +620,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 전체 노선 표시
   Widget _buildRouteSection(
     BusDetailData detail,
   ) {
@@ -753,7 +738,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 버스 목록으로 돌아가는 버튼
   Widget _buildBackButton() {
     return SizedBox(
       width: double.infinity,
@@ -779,7 +763,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 공통 음성 인식 버튼
   Widget _buildVoiceButton() {
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -795,7 +778,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     );
   }
 
-  // 출발지 → 도착지 문자열 생성
   String _buildRouteText(
     BusDetailData detail,
   ) {
@@ -819,7 +801,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     return '노선 정보 없음';
   }
 
-  // 노선 정류장 이름과 승차/하차/기점/종점 정보 생성
   String _routeStopLabel(
     BusDetailData detail,
     int index,
@@ -852,7 +833,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     return "$stopName (${labels.join('·')})";
   }
 
-  // 도착 예정 시간 표시
   String _buildArrivalText(
     BusDetailData detail,
   ) {
@@ -863,7 +843,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     return '${detail.bus.arrivalMinutes}분 후 도착';
   }
 
-  // 남은 정류장 수 표시
   String _buildRemainingStopsText(
     BusDetailData detail,
   ) {
@@ -874,7 +853,6 @@ class _BusDetailScreenState extends State<BusDetailScreen> {
     return '${detail.bus.remainingStops}개 정류장 전';
   }
 
-  // 평일 배차간격 표시
   String _buildIntervalText(
     BusDetailData detail,
   ) {

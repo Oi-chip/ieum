@@ -25,7 +25,6 @@ class GpsException implements Exception {
   String toString() => message;
 }
 
-/// 현재 GPS 좌표와 한국어 주소를 가져오는 공통 서비스입니다.
 class GpsService {
   GpsService._();
 
@@ -36,13 +35,8 @@ class GpsService {
 
   GpsLocation? _lastLocation;
 
-  /// 가장 최근에 정상적으로 가져온 위치입니다.
   GpsLocation? get lastLocation => _lastLocation;
 
-  /// 현재 위치를 한 번 가져옵니다.
-  ///
-  /// 병원 API처럼 `sido`, `sigungu`가 꼭 필요한 경우에는
-  /// [requireRegion]을 true로 설정합니다.
   Future<GpsLocation> getCurrentLocation({bool requireRegion = false}) async {
     try {
       await _ensureLocationPermission();
@@ -97,10 +91,8 @@ class GpsService {
     return location;
   }
 
-  /// 위치 기능이 꺼졌을 때 휴대전화의 위치 설정 화면을 엽니다.
   Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
 
-  /// 위치 권한을 영구적으로 거절했을 때 앱 설정 화면을 엽니다.
   Future<bool> openAppSettings() => Geolocator.openAppSettings();
 
   Future<void> _ensureLocationPermission() async {
@@ -141,7 +133,7 @@ class GpsService {
       );
       return placemarks.isEmpty ? null : placemarks.first;
     } catch (_) {
-      // 주소 변환에 실패해도 버스 API에는 GPS 좌표를 사용할 수 있습니다.
+      // 주소 변환이 실패해도 좌표를 쓰는 버스 조회는 계속할 수 있다.
       return null;
     }
   }

@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../services/favorite_bus_service.dart';
 import '../services/selected_location_service.dart';
 import '../services/tts_service.dart';
+import '../utils/korea_date.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/hold_to_speak.dart';
 import '../widgets/home_bus_card.dart';
@@ -66,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadHomeData();
   }
 
-  // 홈 화면에 필요한 전체 정보 불러오기
   Future<void> _loadHomeData() async {
     final requestId = ++_homeLoadRequestId;
 
@@ -136,7 +136,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // 홈 화면 버스 정보 불러오기
   Future<void> _loadBusSection(
     GpsLocation location,
     int requestId,
@@ -175,7 +174,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // 홈 화면 병원 정보 불러오기
   Future<void> _loadHospitalSection(
     GpsLocation location,
     int requestId,
@@ -217,7 +215,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // 홈 화면 날씨 정보 불러오기
   Future<void> _loadWeatherSection(
     GpsLocation location,
     WeatherGrid grid,
@@ -227,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final weather =
           await ApiService.instance.getWeather(
-        DateTime.now(),
+        koreaToday(),
         nx: grid.nx,
         ny: grid.ny,
       );
@@ -258,12 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // 버스 화면에서 돌아온 뒤 홈 버스 정보 새로고침
   Future<void> _loadHomeBus() async {
     await _loadHomeData();
   }
 
-  // 저장된 즐겨찾기를 반영해 홈 화면 버스 선택
   Future<BusSummary?> _buildHomeBus(
     BusStopData stop,
     List<BusData> candidates,
@@ -292,12 +287,10 @@ class _HomeScreenState extends State<HomeScreen> {
               routeId: b.routeId,
             );
 
-            // 즐겨찾기 버스를 우선 표시
             if (aFavorite != bFavorite) {
               return aFavorite ? -1 : 1;
             }
 
-            // 같은 조건에서는 도착시간이 빠른 버스를 우선 표시
             final aArrival =
                 a.arrivalMinutes ?? 999999;
             final bArrival =
@@ -326,7 +319,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 메인 카드 노선 문구 생성
   String _buildHomeRouteText(
     BusData bus,
   ) {
@@ -348,7 +340,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return '노선 정보 없음';
   }
 
-  // 메인 카드 도착시간 문구 생성
   String _buildHomeArrivalText(
     BusData bus,
   ) {
@@ -359,7 +350,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${bus.arrivalMinutes}분 후 도착';
   }
 
-  // 화면 하단 임시 안내 메시지
   void _showTemporaryMessage(
     BuildContext context,
     String message,
@@ -371,7 +361,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 버스 화면 이동
   Future<void> _goToBusScreen(
     BuildContext context,
   ) async {
@@ -387,11 +376,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // 버스 화면에서 즐겨찾기를 변경했을 수 있으므로 다시 불러오기
     await _loadHomeBus();
   }
 
-  // 병원 화면 이동
   void _goToHospitalScreen(
     BuildContext context,
   ) {
@@ -404,7 +391,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 날씨 화면 이동
   void _goToWeatherScreen(
     BuildContext context,
   ) {
@@ -417,7 +403,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 설정 화면 이동
   Future<void> _goToSettingsScreen(
     BuildContext context,
   ) async {
@@ -436,7 +421,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadHomeData();
   }
 
-  // 메인 화면 음성 명령 처리
   void _handleVoiceCommand(
     BuildContext context,
     String text,
@@ -516,7 +500,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 음성 안내 후 해당 화면 열기
   void _openWithVoiceGuide(
     String guide,
     VoidCallback open,
@@ -530,7 +513,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 현재 위치 표시
   Widget _buildLocationBar() {
     return Padding(
       padding:
@@ -569,7 +551,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 메인 카드 목록
   Widget _buildCardList(
     BuildContext context,
   ) {
@@ -594,7 +575,6 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 4,
           ),
 
-          // 버스 카드
           HoldToSpeak(
             text:
                 '${homeBus.stopName}. '
@@ -615,7 +595,6 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 14,
           ),
 
-          // 병원 카드
           HoldToSpeak(
             text:
                 '가까운 병원은 '
@@ -636,7 +615,6 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 14,
           ),
 
-          // 날씨 카드
           HoldToSpeak(
             text:
                 '현재 날씨는 '

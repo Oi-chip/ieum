@@ -12,14 +12,12 @@ class HospitalDetailScreen extends StatelessWidget {
 
   const HospitalDetailScreen({super.key, required this.hospital});
 
-  // 아직 구현되지 않은 기능 안내
   void _showTemporaryMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  // 병원 전화하기
   Future<void> _callHospital(BuildContext context) async {
     final phoneNumber = hospital.phoneNumber;
 
@@ -39,12 +37,10 @@ class HospitalDetailScreen extends StatelessWidget {
     }
   }
 
-  // 병원 목록으로 돌아가기
   void _goBackToHospitalList(BuildContext context) {
     Navigator.pop(context);
   }
 
-  // 병원 상세 화면 음성 명령 처리
   void _handleVoiceCommand(BuildContext context, String text) {
     final command = text.toLowerCase().replaceAll(' ', '');
 
@@ -116,7 +112,6 @@ class HospitalDetailScreen extends StatelessWidget {
     );
   }
 
-  // 병원 이름과 진료 여부
   Widget _buildHospitalSummary() {
     return Container(
       width: double.infinity,
@@ -168,7 +163,6 @@ class HospitalDetailScreen extends StatelessWidget {
     );
   }
 
-  // 병원 상세 정보
   Widget _buildHospitalInfo(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -211,7 +205,6 @@ class HospitalDetailScreen extends StatelessWidget {
     );
   }
 
-  // 일반 정보 한 줄
   Widget _buildInfoRow({
     required IconData icon,
     required String title,
@@ -235,7 +228,6 @@ class HospitalDetailScreen extends StatelessWidget {
     );
   }
 
-  // 전화번호와 전화하기 버튼
   Widget _buildPhoneSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,7 +278,6 @@ class HospitalDetailScreen extends StatelessWidget {
     );
   }
 
-  // 병원 목록으로 돌아가는 버튼
   Widget _buildBackButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
@@ -304,7 +295,6 @@ class HospitalDetailScreen extends StatelessWidget {
     );
   }
 
-  // 공통 음성 인식 버튼
   Widget _buildVoiceButton(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

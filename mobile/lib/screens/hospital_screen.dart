@@ -31,6 +31,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
   List<HospitalData> _displayedHospitals = [];
   GpsLocation? _location;
   bool _isLoading = true;
+  int _loadRequestId = 0;
 
   @override
   void initState() {
@@ -44,15 +45,14 @@ class _HospitalScreenState extends State<HospitalScreen> {
     super.dispose();
   }
 
-  // 조회나 입력 오류를 화면 하단에 안내합니다.
   void _showTemporaryMessage(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  // 병원 검색
   Future<List<HospitalData>?> _loadHospitals({String? keyword}) async {
+    final requestId = ++_loadRequestId;
     setState(() => _isLoading = true);
     try {
       final location =
@@ -69,7 +69,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
             .where((hospital) => hospital.hasEmergencyRoom)
             .toList();
       }
-      if (!mounted) return null;
+      if (!mounted || requestId != _loadRequestId) return null;
       setState(() {
         _location = location;
         _displayedHospitals = hospitals;
@@ -77,7 +77,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
       });
       return hospitals;
     } catch (error) {
-      if (!mounted) return null;
+      if (!mounted || requestId != _loadRequestId) return null;
       setState(() => _isLoading = false);
       _showTemporaryMessage(error.toString());
       return null;
@@ -92,14 +92,12 @@ class _HospitalScreenState extends State<HospitalScreen> {
     _loadHospitals(keyword: keyword.isEmpty ? null : keyword);
   }
 
-  // 검색 초기화
   void _clearSearch() {
     _searchController.clear();
 
     _loadHospitals();
   }
 
-  // 병원 화면 음성 명령 처리
   Future<void> _handleVoiceCommand(String text) async {
     final command = text.toLowerCase().replaceAll(' ', '');
 
@@ -167,7 +165,6 @@ class _HospitalScreenState extends State<HospitalScreen> {
     unawaited(TtsService.instance.speak('$keyword 검색 결과를 표시합니다.'));
   }
 
-  // 병원 전화하기
   Future<void> _callHospital(HospitalData hospital) async {
     final phoneNumber = hospital.phoneNumber;
 
@@ -187,7 +184,6 @@ class _HospitalScreenState extends State<HospitalScreen> {
     }
   }
 
-  // 병원 상세화면 이동
   Future<void> _openHospitalDetail(HospitalData hospital) async {
     final searchKeyword = await Navigator.push<String>(
       context,
@@ -210,6 +206,9 @@ class _HospitalScreenState extends State<HospitalScreen> {
           children: [
             AppTopBar(
               title: '병원',
+              onBackTap: () {
+                Navigator.maybePop(context);
+              },
               onSosTap: () {
                 showSosMenu(context);
               },
@@ -258,7 +257,6 @@ class _HospitalScreenState extends State<HospitalScreen> {
     );
   }
 
-  // 현재 위치 표시
   Widget _buildLocationSection() {
     return Row(
       children: [
@@ -274,7 +272,6 @@ class _HospitalScreenState extends State<HospitalScreen> {
     );
   }
 
-  // 병원 검색 영역
   Widget _buildSearchSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,7 +331,6 @@ class _HospitalScreenState extends State<HospitalScreen> {
     );
   }
 
-  // 병원 목록
   Widget _buildHospitalList() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -385,7 +381,6 @@ class _HospitalScreenState extends State<HospitalScreen> {
     );
   }
 
-  // 공통 음성 인식 버튼
   Widget _buildVoiceButton() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -394,7 +389,6 @@ class _HospitalScreenState extends State<HospitalScreen> {
     );
   }
 
-  // 홈 화면으로 돌아가는 버튼
   Widget _buildHomeButton() {
     return SizedBox(
       width: double.infinity,

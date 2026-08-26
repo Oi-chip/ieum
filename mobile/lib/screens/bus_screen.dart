@@ -60,7 +60,6 @@ class _BusScreenState extends State<BusScreen> {
     _loadNearbyStops();
   }
 
-  // 주변 정류장과 버스 정보 불러오기
   Future<void> _loadNearbyStops() async {
     final requestId = ++_loadRequestId;
 
@@ -96,7 +95,6 @@ class _BusScreenState extends State<BusScreen> {
 
         _nearbyStops = overview.stops;
 
-        // null은 주변 정류장 전체를 의미
         _selectedStop = null;
 
         _allBusList = overview.routes;
@@ -138,7 +136,6 @@ class _BusScreenState extends State<BusScreen> {
     }
   }
 
-  // 휴대폰에 저장된 버스 즐겨찾기 불러오기
   Future<void> _loadFavorites() async {
     final favoriteRouteKeys =
         await FavoriteBusService.getFavoriteRouteIds();
@@ -166,7 +163,6 @@ class _BusScreenState extends State<BusScreen> {
     super.dispose();
   }
 
-  // 조회나 입력 오류를 화면 하단에 안내
   void _showTemporaryMessage(
     String message,
   ) {
@@ -181,7 +177,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 버스 정보 새로고침
   Future<void> _refreshBusData() async {
     if (_isRefreshing) {
       return;
@@ -190,7 +185,6 @@ class _BusScreenState extends State<BusScreen> {
     await _loadNearbyStops();
   }
 
-  // 목적지 검색
   Future<void> _searchDestination() async {
     FocusScope.of(context).unfocus();
 
@@ -271,7 +265,6 @@ class _BusScreenState extends State<BusScreen> {
     }
   }
 
-  // 목적지 검색 경고문 생성
   String? _searchWarning(
     BusSearchData result,
   ) {
@@ -293,7 +286,6 @@ class _BusScreenState extends State<BusScreen> {
     return '일부 실시간 도착정보를 받지 못했지만 확인된 노선은 모두 표시합니다.';
   }
 
-  // 즐겨찾기와 도착시간을 기준으로 버스 정렬
   List<BusData> _sortAndFilter(
     List<BusData> source,
   ) {
@@ -327,7 +319,6 @@ class _BusScreenState extends State<BusScreen> {
     return buses;
   }
 
-  // 버스 즐겨찾기 여부 확인
   bool _isFavorite(
     BusData bus,
   ) {
@@ -338,7 +329,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 검색 초기화
   void _clearSearch() {
     ++_searchRequestId;
 
@@ -363,7 +353,6 @@ class _BusScreenState extends State<BusScreen> {
     });
   }
 
-  // 버스 화면 음성 명령 처리
   Future<void> _handleVoiceCommand(
     String text,
   ) async {
@@ -420,7 +409,6 @@ class _BusScreenState extends State<BusScreen> {
     await _searchDestination();
   }
 
-  // 음성으로 버스 번호 검색
   Future<void> _searchByBusNumber(
     String spokenNumber,
   ) async {
@@ -498,7 +486,6 @@ class _BusScreenState extends State<BusScreen> {
     }
   }
 
-  // 버스 카드 선택
   Future<void> _openBusDetail(
     BusData bus,
   ) async {
@@ -566,7 +553,6 @@ class _BusScreenState extends State<BusScreen> {
     }
   }
 
-  // 버스 즐겨찾기 추가 또는 해제
   Future<void> _toggleFavorite(
     BusData bus,
   ) async {
@@ -627,7 +613,6 @@ class _BusScreenState extends State<BusScreen> {
     }
   }
 
-  // 주변 정류장 선택창
   void _showStopSelectionMenu() {
     if (_nearbyStops.isEmpty) {
       _showTemporaryMessage(
@@ -764,7 +749,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 검색 출발 정류장 선택
   void _selectOriginStop(
     BusStopData? stop,
   ) {
@@ -805,6 +789,9 @@ class _BusScreenState extends State<BusScreen> {
           children: [
             AppTopBar(
               title: '버스',
+              onBackTap: () {
+                Navigator.maybePop(context);
+              },
               onSosTap: () {
                 showSosMenu(
                   context,
@@ -1014,7 +1001,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 현재 위치와 새로고침 영역
   Widget _buildLocationSection() {
     return Row(
       children: [
@@ -1066,7 +1052,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 도착지역 검색 영역
   Widget _buildSearchSection() {
     return Column(
       crossAxisAlignment:
@@ -1187,7 +1172,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 검색 출발 정류장 영역
   Widget _buildNearbyStopSection() {
     if (_isRefreshing &&
         _nearbyStops.isEmpty) {
@@ -1351,7 +1335,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 버스 목록
   Widget _buildBusList() {
     if (_isRefreshing &&
         _allBusList.isEmpty) {
@@ -1534,7 +1517,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 목록 상단 필터
   Widget _buildListControls() {
     return Row(
       children: [
@@ -1581,7 +1563,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 거리 표시
   String _distanceText(
     int meters,
   ) {
@@ -1592,7 +1573,6 @@ class _BusScreenState extends State<BusScreen> {
     return '${(meters / 1000).toStringAsFixed(1)}km';
   }
 
-  // 홈 화면으로 돌아가는 버튼
   Widget _buildHomeButton() {
     return SizedBox(
       width: double.infinity,
@@ -1636,7 +1616,6 @@ class _BusScreenState extends State<BusScreen> {
     );
   }
 
-  // 공통 음성인식 버튼
   Widget _buildVoiceButton() {
     return Container(
       padding:

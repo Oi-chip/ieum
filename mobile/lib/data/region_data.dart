@@ -76,4 +76,3 @@ const Map<String, List<String>> districtsByProvince = {
     '제주시','서귀포시',
   ],
 };
-  

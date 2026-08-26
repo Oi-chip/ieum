@@ -4,7 +4,6 @@ import 'district_selection_screen.dart';
 class ProvinceSelectionScreen extends StatelessWidget {
   const ProvinceSelectionScreen({super.key, required this.districtsByProvince});
 
-  // 도별 시·군·구 목록
   final Map<String, List<String>> districtsByProvince;
 
   @override

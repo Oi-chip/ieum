@@ -13,14 +13,13 @@ class WeatherGrid {
   const WeatherGrid(this.nx, this.ny);
 }
 
-/// 설정에서 선택한 지역을 앱 전체의 조회 기준 위치로 변환합니다.
 class SelectedLocationService {
   SelectedLocationService._();
 
   static final SelectedLocationService instance = SelectedLocationService._();
   static const String selectedRegionKey = 'selectedRegion';
   static const Map<String, List<double>> _fixedRegionCoordinates = {
-    // TAGO 봉화군청 정류장 기준 좌표입니다.
+    // 봉화군은 군청 앞 정류장 좌표를 기준으로 조회한다.
     '경상북도 봉화군': [36.89101, 128.7331261],
   };
 
@@ -46,8 +45,8 @@ class SelectedLocationService {
     final sido = parts.first;
     final sigungu = parts.skip(1).join(' ');
     final officeQuery = sigungu == '전 지역'
-        ? '${sido}청'
-        : '$sido ${sigungu}청';
+        ? '$sido청'
+        : '$sido $sigungu청';
     final fixedCoordinates = _fixedRegionCoordinates[selected];
     if (fixedCoordinates != null) {
       return GpsLocation(
@@ -58,7 +57,7 @@ class SelectedLocationService {
         sido: sido,
         sigungu: sigungu,
         address: officeQuery,
-        referenceName: sigungu == '전 지역' ? '${sido}청' : '${sigungu}청',
+        referenceName: sigungu == '전 지역' ? '$sido청' : '$sigungu청',
       );
     }
     try {
@@ -78,7 +77,7 @@ class SelectedLocationService {
         sido: sido,
         sigungu: sigungu == '전 지역' ? sido : sigungu,
         address: officeQuery,
-        referenceName: sigungu == '전 지역' ? '${sido}청' : '${sigungu}청',
+        referenceName: sigungu == '전 지역' ? '$sido청' : '$sigungu청',
       );
     } on GpsException {
       rethrow;
@@ -90,7 +89,6 @@ class SelectedLocationService {
     }
   }
 
-  /// 위경도를 기상청 단기예보 격자 좌표로 변환합니다.
   WeatherGrid weatherGrid(GpsLocation location) {
     const re = 6371.00877 / 5.0;
     const slat1 = 30.0;

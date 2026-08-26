@@ -34,7 +34,6 @@ class BusListCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 버스 번호와 즐겨찾기 버튼
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -58,7 +57,6 @@ class BusListCard extends StatelessWidget {
                 ],
               ),
 
-              // 버스 종류
               if (bus.routeType != null) ...[
                 const SizedBox(height: 2),
                 Text(
@@ -85,7 +83,6 @@ class BusListCard extends StatelessWidget {
 
               const SizedBox(height: 14),
 
-              // 버스 노선 간략 정보
               Row(
                 children: [
                   const Icon(Icons.route, size: 22),
@@ -119,7 +116,6 @@ class BusListCard extends StatelessWidget {
                 ),
               ],
 
-              // 검색 결과일 경우 실제 일치한 정류장 표시
               if (bus.matchedStop != null) ...[
                 const SizedBox(height: 10),
                 Row(
@@ -157,7 +153,6 @@ class BusListCard extends StatelessWidget {
 
               const SizedBox(height: 18),
 
-              // 남은 정류장 수와 도착 예상 시간
               Row(
                 children: [
                   Expanded(
@@ -185,7 +180,6 @@ class BusListCard extends StatelessWidget {
     );
   }
 
-  // 출발지와 종점을 이용해 간략 노선 표시
   String _buildRouteText() {
     final start = bus.startStop;
     final end = bus.endStop;
@@ -221,7 +215,6 @@ class BusListCard extends StatelessWidget {
     return '${(meters / 1000).toStringAsFixed(1)}km';
   }
 
-  // 남은 정류장 수 표시
   String _buildRemainingStopsText() {
     if (bus.remainingStops == null) {
       return '남은 정류장 정보 없음';
@@ -230,7 +223,6 @@ class BusListCard extends StatelessWidget {
     return '${bus.remainingStops}개 정류장 전';
   }
 
-  // 도착 예상 시간 표시
   String _buildArrivalText() {
     if (bus.arrivalMinutes == null) {
       return '도착 정보 없음';

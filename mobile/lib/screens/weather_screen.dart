@@ -5,15 +5,8 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/selected_location_service.dart';
 import '../services/tts_service.dart';
+import '../utils/korea_date.dart';
 
-/// 날씨 화면
-///
-/// 와이어프레임(docs/wireframe/날씨 페이지 스케치.png) 구성을 그대로 따른다.
-/// 1) 상단: 나가기 버튼
-/// 2) 하늘상태(아이콘+라벨) / 미세먼지(아이콘+라벨) 좌우 2분할
-/// 3) 날짜 네비게이터 (전날 - 월 일 - 다음날)
-/// 4) 시간별 예보 (현재 시각 강조)
-/// 5) 상세 정보 2x2 그리드: 기온 -> 강수량 -> 눈 -> 바람
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen({super.key});
 
@@ -27,6 +20,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
   String? _errorMessage;
   bool _isLoading = true;
   bool _hasAnnouncedInitialWeather = false;
+  int _loadRequestId = 0;
 
   @override
   void initState() {
@@ -35,9 +29,12 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 
   Future<void> _loadWeather() async {
-    if (_selectedDate.isBefore(_today)) {
-      _selectedDate = _today;
+    final requestId = ++_loadRequestId;
+    final today = _today;
+    if (_selectedDate.isBefore(today)) {
+      _selectedDate = today;
     }
+    final requestedDate = _selectedDate;
 
     setState(() {
       _isLoading = true;
@@ -48,29 +45,29 @@ class _WeatherScreenState extends State<WeatherScreen> {
       final location = await SelectedLocationService.instance.getLocation();
       final grid = SelectedLocationService.instance.weatherGrid(location);
       final json = await ApiService.instance.getWeather(
-        _selectedDate,
+        requestedDate,
         nx: grid.nx,
         ny: grid.ny,
       );
-      if (!mounted) return;
+      if (!mounted || requestId != _loadRequestId) return;
       final weather = _WeatherData.fromJson(json);
       setState(() => _weather = weather);
 
       if (!_hasAnnouncedInitialWeather &&
-          DateUtils.isSameDay(_selectedDate, _today)) {
+          DateUtils.isSameDay(requestedDate, today)) {
         _hasAnnouncedInitialWeather = true;
         unawaited(_speakWeather(weather));
       }
     } on ApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || requestId != _loadRequestId) {
         return;
       }
 
       setState(() {
         _errorMessage = error.message;
       });
-    } catch (error) {
-      if (!mounted) {
+    } catch (_) {
+      if (!mounted || requestId != _loadRequestId) {
         return;
       }
 
@@ -78,7 +75,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
         _errorMessage = '날씨 정보를 불러오는 중 오류가 발생했습니다.';
       });
     } finally {
-      if (mounted) {
+      if (mounted && requestId == _loadRequestId) {
         setState(() {
           _isLoading = false;
         });
@@ -98,8 +95,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 
   DateTime get _today {
-    final koreaNow = DateTime.now().toUtc().add(const Duration(hours: 9));
-    return DateTime(koreaNow.year, koreaNow.month, koreaNow.day);
+    return koreaToday();
   }
 
   bool get _canGoPrevious => _selectedDate.isAfter(_today);
@@ -125,7 +121,6 @@ class _WeatherScreenState extends State<WeatherScreen> {
         title: const Text('오늘 날씨', style: TextStyle(fontSize: 22)),
         centerTitle: true,
         actions: [
-          // 음성 안내 버튼을 상단에도 배치해 접근 경로를 두 곳으로 늘림
           IconButton(
             iconSize: 30,
             tooltip: '음성으로 듣기',
@@ -214,8 +209,6 @@ class _WeatherScreenState extends State<WeatherScreen> {
   }
 }
 
-/// 하늘상태 / 미세먼지 카드를 좌우로 배치하는 행.
-/// 와이어프레임에서 두 개의 큰 원(아이콘)이 나란히 놓인 부분에 대응한다.
 class _TopStatusRow extends StatelessWidget {
   const _TopStatusRow({required this.data});
 
@@ -293,7 +286,6 @@ class _StatusCircleCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          // 색상 + 아이콘 (원형 배경으로 와이어프레임의 원 느낌을 살림)
           Container(
             width: 80,
             height: 80,
@@ -304,7 +296,6 @@ class _StatusCircleCard extends StatelessWidget {
             child: Icon(icon, size: 48, color: iconColor),
           ),
           const SizedBox(height: 10),
-          // 색상만으로 구분하지 않고 한글 라벨을 반드시 함께 표시 (고령층 접근성)
           Text(
             valueLabel,
             style: TextStyle(
@@ -361,7 +352,6 @@ class _DateNavigator extends StatelessWidget {
   }
 }
 
-/// 와이어프레임의 "전날 / 다음날" 캡슐(알약) 버튼 모양을 그대로 구현.
 class _PillButton extends StatelessWidget {
   const _PillButton({
     required this.icon,
@@ -381,7 +371,7 @@ class _PillButton extends StatelessWidget {
     final textWidget = Text(label, style: const TextStyle(fontSize: 16));
 
     return SizedBox(
-      height: 48, // 최소 터치 타겟 48px 보장
+      height: 48,
       child: OutlinedButton.icon(
         onPressed: onPressed,
         icon: iconTrailing ? textWidget : iconWidget,
@@ -425,7 +415,6 @@ class _HourlyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // 와이어프레임에서 현재 시각을 "원"으로 강조한 부분을 색상 + 테두리로 표현
     final isNow = hour.isCurrent;
     return Container(
       width: 84,
@@ -475,9 +464,6 @@ class _HourlyCard extends StatelessWidget {
   }
 }
 
-/// 상세 정보 2x2 그리드: 기온 -> 강수량 -> 눈 -> 바람
-/// (와이어프레임 순서를 그대로 반영. 스크롤하면 아래쪽 두 칸이 보이는 구조도
-/// SingleChildScrollView 안에 이 위젯이 이어서 배치되므로 그대로 재현된다.)
 class _DetailGrid extends StatelessWidget {
   const _DetailGrid({required this.data});
 
@@ -572,7 +558,7 @@ class _SpeakButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 56, // 최소 터치 타겟 48px 이상 확보
+      height: 56,
       child: FilledButton.icon(
         onPressed: onPressed,
         icon: const Icon(Icons.volume_up, size: 24),
@@ -629,10 +615,6 @@ class _WeatherError extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 더미 데이터 모델. 실제 연동 시 서버 /api/weather 응답 스키마에 맞춰
-// fromJson 팩토리를 추가하고, region.json의 nx/ny를 요청 파라미터로 사용하세요.
-// ---------------------------------------------------------------------------
 enum _AirQualityLevel {
   good,
   normal,
@@ -653,7 +635,6 @@ enum _AirQualityLevel {
     _AirQualityLevel.veryBad => '매우 나쁨',
   };
 
-  // 이모지 단독 표시는 지양하고, 아이콘 + 색상 + 한글 라벨을 함께 사용한다.
   IconData get icon => switch (this) {
     _AirQualityLevel.good => Icons.sentiment_very_satisfied,
     _AirQualityLevel.normal => Icons.sentiment_satisfied,
@@ -683,8 +664,6 @@ class _WeatherData {
 
   IconData get conditionIcon => _weatherIcon(conditionLabel);
 
-  /// TTS로 읽어줄 한 문장 요약. 서버가 이 문장을 직접 내려주는 방식을
-  /// 기획서 2.6에서 권장하므로, 실제 연동 시 서버 응답 필드로 교체하세요.
   String get summarySentence =>
       '오늘 날씨는 $conditionLabel, 기온은 $temperatureC도입니다. '
       '미세먼지는 ${airQualityLevel.label}이고, '
