@@ -125,6 +125,7 @@ class ApiService {
     GpsLocation location,
     String destination, {
     BusStopData? originStop,
+    BusStopData? destinationStop,
   }) async {
     final parameters = location.toQueryParameters(includeRegion: false)
       ..['destination'] = destination.trim();
@@ -134,6 +135,12 @@ class ApiService {
         'origin_city_code': originStop.cityCode,
       });
     }
+    if (destinationStop != null) {
+      parameters.addAll({
+        'destination_stop_id': destinationStop.stopId,
+        'destination_city_code': destinationStop.cityCode,
+      });
+    }
 
     final body = await _get(
       '/api/bus/search',
@@ -141,6 +148,24 @@ class ApiService {
       _busAggregateTimeout,
     );
     return BusSearchData.fromJson(_responseData(body));
+  }
+
+  Future<List<BusStopData>> searchBusDestinationStops(
+    GpsLocation location,
+    String destination,
+  ) async {
+    final parameters = location.toQueryParameters(includeRegion: false)
+      ..['destination'] = destination.trim();
+    final body = await _get(
+      '/api/bus/destination-stops',
+      parameters,
+      _busAggregateTimeout,
+    );
+    final items = _responseData(body)['stops'] as List? ?? [];
+    return items
+        .whereType<Map>()
+        .map((item) => BusStopData.fromJson(Map<String, dynamic>.from(item)))
+        .toList(growable: false);
   }
 
   Future<List<BusData>> getBusArrivals(BusStopData stop) async {

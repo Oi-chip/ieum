@@ -275,7 +275,7 @@ void main() {
     expect(await FavoriteBusService.getFavoriteRouteIds(), {'37410:ROUTE-1'});
   });
 
-  test('검색 API에 위치와 선택한 출발 정류장 키를 함께 보낸다', () async {
+  test('검색 API에 선택한 출발·도착 정류장 키를 함께 보낸다', () async {
     late Uri requestedUri;
     final client = MockClient((request) async {
       requestedUri = request.url;
@@ -298,8 +298,19 @@ void main() {
       stopName: '삼양홈마트',
       distanceM: 207,
     );
+    const destination = BusStopData(
+      stopId: 'TSB356000631',
+      cityCode: '37060',
+      stopName: '영주고추시장',
+      distanceM: 0,
+    );
 
-    await api.searchBusRoutes(location, ' 영주 ', originStop: origin);
+    await api.searchBusRoutes(
+      location,
+      ' 영주 ',
+      originStop: origin,
+      destinationStop: destination,
+    );
 
     expect(requestedUri.path, '/api/bus/search');
     expect(requestedUri.queryParameters['latitude'], '36.8910100');
@@ -307,6 +318,55 @@ void main() {
     expect(requestedUri.queryParameters['destination'], '영주');
     expect(requestedUri.queryParameters['origin_stop_id'], origin.stopId);
     expect(requestedUri.queryParameters['origin_city_code'], origin.cityCode);
+    expect(
+      requestedUri.queryParameters['destination_stop_id'],
+      destination.stopId,
+    );
+    expect(
+      requestedUri.queryParameters['destination_city_code'],
+      destination.cityCode,
+    );
+  });
+
+  test('도착지역 기준 정류장 목록을 요청한다', () async {
+    late Uri requestedUri;
+    final client = MockClient((request) async {
+      requestedUri = request.url;
+      return http.Response(
+        jsonEncode({
+          'success': true,
+          'data': {
+            'destination': '영주',
+            'stops': [
+              {
+                'id': 'TSB356000008',
+                'city_code': '37060',
+                'name': '영주역',
+                'number': '3560008',
+                'latitude': 36.810486,
+                'longitude': 128.624387,
+              },
+            ],
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+    final api = ApiService.withClient(client, baseUrl: 'http://example.test');
+    final location = GpsLocation(
+      latitude: 36.89101,
+      longitude: 128.7331261,
+      accuracyM: 0,
+      measuredAt: DateTime(2026, 8, 27),
+    );
+
+    final stops = await api.searchBusDestinationStops(location, ' 영주 ');
+
+    expect(requestedUri.path, '/api/bus/destination-stops');
+    expect(requestedUri.queryParameters['destination'], '영주');
+    expect(stops.single.stopName, '영주역');
+    expect(stops.single.cityCode, '37060');
   });
 
   test('overview와 search만 집계형 버스 timeout을 사용한다', () async {
@@ -317,9 +377,10 @@ void main() {
           'stops': <Map<String, dynamic>>[],
           'routes': <Map<String, dynamic>>[],
         },
-        '/api/bus/search' => {
+        '/api/bus/search' || '/api/bus/destination-stops' => {
           'destination': '영주',
           'routes': <Map<String, dynamic>>[],
+          'stops': <Map<String, dynamic>>[],
         },
         _ => {'stops': <Map<String, dynamic>>[]},
       };
@@ -347,6 +408,7 @@ void main() {
       throwsA(isA<ApiException>()),
     );
     await expectLater(api.getBusOverview(location), completes);
+    await expectLater(api.searchBusDestinationStops(location, '영주'), completes);
     await expectLater(api.searchBusRoutes(location, '영주'), completes);
   });
 }

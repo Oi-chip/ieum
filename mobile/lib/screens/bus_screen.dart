@@ -30,9 +30,12 @@ class _BusScreenState extends State<BusScreen> {
   List<BusData> _allBusList = [];
   List<BusData> _searchResults = [];
   List<BusStopData> _nearbyStops = [];
+  List<BusStopData> _destinationStops = [];
 
   GpsLocation? _location;
   BusStopData? _selectedStop;
+  BusStopData? _selectedDestinationStop;
+  String? _destinationQuery;
 
   bool _arrivalInformationUnavailable = false;
   bool _overviewArrivalInformationUnavailable = false;
@@ -100,6 +103,12 @@ class _BusScreenState extends State<BusScreen> {
         _allBusList = overview.routes;
 
         _searchResults = [];
+
+        _destinationStops = [];
+
+        _selectedDestinationStop = null;
+
+        _destinationQuery = null;
 
         _isSearching = false;
         _isRefreshing = false;
@@ -216,41 +225,58 @@ class _BusScreenState extends State<BusScreen> {
     setState(() {
       _isSearchLoading = true;
       _errorMessage = null;
+      _selectedDestinationStop = null;
+      _destinationStops = [];
+      _destinationQuery = destination;
     });
 
     try {
-      final result =
-          await ApiService.instance.searchBusRoutes(
+      final stops =
+          await ApiService.instance.searchBusDestinationStops(
         location,
         destination,
-        originStop: _selectedStop,
       );
 
-      if (!mounted ||
-          requestId != _searchRequestId) {
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+
+      if (stops.isEmpty) {
+        setState(() {
+          _isSearching = true;
+          _isSearchLoading = false;
+          _searchResults = [];
+          _displayedBusList = [];
+          _arrivalInformationUnavailable = false;
+          _dataWarning = null;
+        });
+        _showTemporaryMessage(
+          "'$destination'에 해당하는 도착 정류장을 찾지 못했습니다.",
+        );
         return;
       }
 
       setState(() {
-        _isSearching = true;
-        _isSearchLoading = false;
-
-        _searchResults = result.routes;
-
-        _displayedBusList = _sortAndFilter(
-          result.routes,
-        );
-
-        _arrivalInformationUnavailable =
-            result.arrivalInformationUnavailable;
-
-        _dataWarning = _searchWarning(
-          result,
-        );
+        _destinationStops = stops;
       });
+
+      final selectedStop = await _showDestinationStopSelectionMenu(
+        destination,
+        stops,
+      );
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+      if (selectedStop == null) {
+        setState(() {
+          _isSearchLoading = false;
+        });
+        return;
+      }
+
+      await _loadDestinationRoutes(destination, selectedStop);
     } catch (error) {
-      if (!mounted ||
-          requestId != _searchRequestId) {
+      if (!mounted || requestId != _searchRequestId) {
         return;
       }
 
@@ -259,9 +285,58 @@ class _BusScreenState extends State<BusScreen> {
         _errorMessage = error.toString();
       });
 
-      _showTemporaryMessage(
-        error.toString(),
+      _showTemporaryMessage(error.toString());
+    }
+  }
+
+  Future<void> _loadDestinationRoutes(
+    String destination,
+    BusStopData destinationStop,
+  ) async {
+    final location = _location;
+    if (location == null) {
+      _showTemporaryMessage('출발 위치를 확인하고 있습니다.');
+      return;
+    }
+
+    final requestId = ++_searchRequestId;
+    setState(() {
+      _isSearchLoading = true;
+      _selectedDestinationStop = destinationStop;
+      _destinationQuery = destination;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await ApiService.instance.searchBusRoutes(
+        location,
+        destination,
+        originStop: _selectedStop,
+        destinationStop: destinationStop,
       );
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+
+      setState(() {
+        _isSearching = true;
+        _isSearchLoading = false;
+        _searchResults = result.routes;
+        _displayedBusList = _sortAndFilter(result.routes);
+        _arrivalInformationUnavailable =
+            result.arrivalInformationUnavailable;
+        _dataWarning = _searchWarning(result);
+      });
+    } catch (error) {
+      if (!mounted || requestId != _searchRequestId) {
+        return;
+      }
+
+      setState(() {
+        _isSearchLoading = false;
+        _errorMessage = error.toString();
+      });
+      _showTemporaryMessage(error.toString());
     }
   }
 
@@ -309,8 +384,17 @@ class _BusScreenState extends State<BusScreen> {
           return favoriteCompare;
         }
 
-        return (a.arrivalMinutes ?? 999999)
-            .compareTo(
+        if (_isSearching) {
+          final distanceCompare =
+              (a.boardingStop?.distanceM ?? 999999999).compareTo(
+            b.boardingStop?.distanceM ?? 999999999,
+          );
+          if (distanceCompare != 0) {
+            return distanceCompare;
+          }
+        }
+
+        return (a.arrivalMinutes ?? 999999).compareTo(
           b.arrivalMinutes ?? 999999,
         );
       },
@@ -339,6 +423,12 @@ class _BusScreenState extends State<BusScreen> {
       _isSearchLoading = false;
 
       _searchResults = [];
+
+      _destinationStops = [];
+
+      _selectedDestinationStop = null;
+
+      _destinationQuery = null;
 
       _displayedBusList = _sortAndFilter(
         _allBusList,
@@ -613,6 +703,97 @@ class _BusScreenState extends State<BusScreen> {
     }
   }
 
+  Future<BusStopData?> _showDestinationStopSelectionMenu(
+    String destination,
+    List<BusStopData> stops,
+  ) {
+    return showModalBottomSheet<BusStopData>(
+      context: context,
+      isScrollControlled: true,
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "'$destination' 도착 정류장 선택",
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '도착할 정류장을 선택하면 그 정류장을 지나는 노선에서 가장 가까운 승차 지점을 찾습니다.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 17,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  height: 460,
+                  child: ListView.separated(
+                    itemCount: stops.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final stop = stops[index];
+                      final selected =
+                          stop.stopId == _selectedDestinationStop?.stopId &&
+                          stop.cityCode ==
+                              _selectedDestinationStop?.cityCode;
+                      return ListTile(
+                        leading: Icon(
+                          selected
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off,
+                        ),
+                        title: Text(
+                          stop.stopName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          stop.stopNumber == null
+                              ? '도시코드 ${stop.cityCode}'
+                              : '정류장 번호 ${stop.stopNumber}',
+                        ),
+                        onTap: () {
+                          Navigator.pop(bottomSheetContext, stop);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _changeDestinationStop() async {
+    if (_isSearchLoading || _destinationStops.isEmpty) {
+      return;
+    }
+    final destination =
+        _destinationQuery ?? _searchController.text.trim();
+    final selectedStop = await _showDestinationStopSelectionMenu(
+      destination,
+      _destinationStops,
+    );
+    if (!mounted || selectedStop == null) {
+      return;
+    }
+    await _loadDestinationRoutes(destination, selectedStop);
+  }
+
   void _showStopSelectionMenu() {
     if (_nearbyStops.isEmpty) {
       _showTemporaryMessage(
@@ -636,7 +817,7 @@ class _BusScreenState extends State<BusScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  '검색 출발 정류장',
+                  '출발 정류장 (현재 위치 기준)',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -764,6 +945,12 @@ class _BusScreenState extends State<BusScreen> {
 
       _searchResults = [];
 
+      _destinationStops = [];
+
+      _selectedDestinationStop = null;
+
+      _destinationQuery = null;
+
       _displayedBusList = _sortAndFilter(
         _allBusList,
       );
@@ -842,6 +1029,14 @@ class _BusScreenState extends State<BusScreen> {
                             ),
 
                             _buildSearchSection(),
+
+                            if (_destinationStops.isNotEmpty) ...[
+                              const SizedBox(
+                                height: 16,
+                              ),
+
+                              _buildDestinationStopSection(),
+                            ],
 
                             const SizedBox(
                               height: 24,
@@ -1141,7 +1336,7 @@ class _BusScreenState extends State<BusScreen> {
                             ),
                           )
                         : const Text(
-                            '검색',
+                            '정류장 찾기',
                             style:
                                 TextStyle(
                               fontSize: 17,
@@ -1161,7 +1356,9 @@ class _BusScreenState extends State<BusScreen> {
           ),
 
           Text(
-            "'${_searchController.text.trim()}' 목적지 검색 결과",
+            _selectedDestinationStop == null
+                ? "'${_searchController.text.trim()}' 도착 정류장을 선택해 주세요."
+                : "'${_selectedDestinationStop!.stopName}' 도착 노선 검색 결과",
             style: const TextStyle(
               fontSize: 16,
               color: Colors.black54,
@@ -1169,6 +1366,71 @@ class _BusScreenState extends State<BusScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildDestinationStopSection() {
+    final selectedStop = _selectedDestinationStop;
+    return InkWell(
+      onTap: _isSearchLoading ? null : _changeDestinationStop,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEAF7EE),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF81C784),
+            width: 2,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.flag_outlined,
+              size: 30,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '선택한 도착 정류장',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    selectedStop?.stopName ?? '도착 정류장을 선택해 주세요.',
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    selectedStop?.stopNumber == null
+                        ? '${_destinationStops.length}개 후보 정류장'
+                        : '정류장 번호 ${selectedStop!.stopNumber}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.swap_horiz,
+              size: 30,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1278,7 +1540,7 @@ class _BusScreenState extends State<BusScreen> {
                         .start,
                 children: [
                   const Text(
-                    '검색 출발 정류장',
+                    '출발 정류장 (현재 위치 기준)',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight:

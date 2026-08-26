@@ -11,11 +11,13 @@ from services.bus_service import (
     _collect_nearby_route_candidates,
     _attach_search_arrivals,
     _destination_provider_city_codes,
+    _find_destination_based_journey,
     _find_direct_journey,
     _get_all_response_items,
     _get_cached_stop_routes,
     _get_response_items,
     _load_stop_bundle,
+    _load_destination_stops_for_city,
     _search_route_candidate,
     _turnaround_stop_name,
     clear_bus_route_cache,
@@ -24,6 +26,7 @@ from services.bus_service import (
     get_nearby_bus_overview,
     get_nearby_stops,
     get_stop_routes,
+    search_destination_stops,
     search_bus_routes,
 )
 
@@ -280,6 +283,69 @@ class BusRouteTest(unittest.TestCase):
             "영주",
             "TSB371000047",
             "37410",
+            None,
+            None,
+        )
+
+    @patch("routes.bus.search_destination_stops")
+    def test_destination_stop_search_success(self, mock_search_stops):
+        mock_search_stops.return_value = {
+            "destination": "영주",
+            "stops": [{
+                "id": "TSB356000008",
+                "city_code": "37060",
+                "name": "영주역",
+            }],
+            "searched_city_codes": ["37060"],
+            "partial": False,
+            "unavailable_city_codes": [],
+        }
+
+        response = self.client.get(
+            "/api/bus/destination-stops",
+            query_string={
+                "latitude": "36.89101",
+                "longitude": "128.7331261",
+                "destination": "영주",
+            },
+        )
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["data"]["stops"][0]["name"], "영주역")
+        mock_search_stops.assert_called_once_with(
+            36.89101,
+            128.7331261,
+            "영주",
+        )
+
+    @patch("routes.bus.search_bus_routes")
+    def test_bus_search_passes_selected_destination_stop(self, mock_search):
+        mock_search.return_value = {
+            "destination": "영주",
+            "routes": [],
+        }
+
+        response = self.client.get(
+            "/api/bus/search",
+            query_string={
+                "latitude": "36.89101",
+                "longitude": "128.7331261",
+                "destination": "영주",
+                "destination_stop_id": "TSB356000008",
+                "destination_city_code": "37060",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_called_once_with(
+            36.89101,
+            128.7331261,
+            "영주",
+            None,
+            None,
+            "TSB356000008",
+            "37060",
         )
 
     @patch("routes.bus.search_bus_routes")
@@ -325,6 +391,19 @@ class BusRouteTest(unittest.TestCase):
                 "origin_stop_id": "TSB371000047",
                 "origin_city_code": "invalid",
             }, "INVALID_ORIGIN_STOP"),
+            ({
+                "latitude": "36.89101",
+                "longitude": "128.7331261",
+                "destination": "영주",
+                "destination_stop_id": "TSB356000008",
+            }, "INVALID_DESTINATION_STOP"),
+            ({
+                "latitude": "36.89101",
+                "longitude": "128.7331261",
+                "destination": "영주",
+                "destination_stop_id": "invalid-stop-id",
+                "destination_city_code": "37060",
+            }, "INVALID_DESTINATION_STOP"),
         ]
 
         for query, error_code in cases:
@@ -516,6 +595,67 @@ class BusServiceTest(unittest.TestCase):
         self.assertEqual(stops[0]["city_code"], "25")
         self.assertEqual(stops[0]["number"], "1")
         self.assertIn("distance_m", stops[0])
+
+    @patch("services.bus_service._get_all_response_items")
+    def test_destination_stop_loader_uses_name_search_api(self, mock_get_items):
+        mock_get_items.return_value = [{
+            "nodeid": "TSB356000008",
+            "citycode": "37060",
+            "nodenm": "영주역",
+            "nodeno": "3560008",
+            "gpslati": 36.810486,
+            "gpslong": 128.624387,
+        }]
+
+        stops = _load_destination_stops_for_city("37060", "영주")
+
+        self.assertEqual(stops[0]["name"], "영주역")
+        self.assertIn("getSttnNoList", mock_get_items.call_args.args[0])
+        self.assertEqual(
+            mock_get_items.call_args.args[1],
+            {"cityCode": "37060", "nodeNm": "영주"},
+        )
+
+    @patch("services.bus_service._get_cached_destination_stops")
+    @patch("services.bus_service._get_cached_nearby_stops")
+    @patch(
+        "services.bus_service._destination_provider_city_codes",
+        return_value=("37060",),
+    )
+    def test_destination_stop_search_uses_destination_and_origin_city_codes(
+        self,
+        _mock_destination_codes,
+        mock_nearby_stops,
+        mock_destination_stops,
+    ):
+        mock_nearby_stops.return_value = [{"city_code": "37410"}]
+
+        def stops_for_city(city_code, _destination):
+            if city_code != "37060":
+                return []
+            return [{
+                "id": "TSB356000008",
+                "city_code": "37060",
+                "name": "영주역",
+                "number": "3560008",
+                "latitude": 36.810486,
+                "longitude": 128.624387,
+            }]
+
+        mock_destination_stops.side_effect = stops_for_city
+
+        result = search_destination_stops(
+            36.89101,
+            128.7331261,
+            "영주",
+        )
+
+        self.assertEqual(result["stops"][0]["id"], "TSB356000008")
+        self.assertEqual(result["searched_city_codes"], ["37060", "37410"])
+        self.assertEqual(
+            {call.args[0] for call in mock_destination_stops.call_args_list},
+            {"37060", "37410"},
+        )
 
     @patch("services.bus_service.data_go_API_KEY", "test-key")
 
@@ -879,6 +1019,38 @@ class BusServiceTest(unittest.TestCase):
         journey = _find_direct_journey(route_stops, boardings, "영주")
 
         self.assertIsNone(journey)
+
+    def test_destination_based_journey_is_not_limited_to_500_meters(self):
+        route_stops = [
+            {
+                "id": "FAR-BOARDING",
+                "name": "승차 정류장",
+                "number": "100",
+                "order": 1,
+                "latitude": 36.9005,
+                "longitude": 128.733,
+            },
+            {
+                "id": "DESTINATION",
+                "name": "영주역",
+                "number": "200",
+                "order": 2,
+                "latitude": 36.810486,
+                "longitude": 128.624387,
+            },
+        ]
+
+        journey = _find_destination_based_journey(
+            route_stops,
+            36.891,
+            128.733,
+            {"id": "DESTINATION"},
+        )
+
+        self.assertIsNotNone(journey)
+        self.assertGreater(journey["boarding"]["stop"]["distance_m"], 500)
+        self.assertEqual(journey["boarding_stop"]["id"], "FAR-BOARDING")
+        self.assertEqual(journey["destination_stop"]["id"], "DESTINATION")
 
     def test_find_direct_journey_checks_every_duplicate_origin_occurrence(self):
         route_stops = [
@@ -1369,6 +1541,55 @@ class BusServiceTest(unittest.TestCase):
         self.assertEqual(mock_collect.call_args.args[-1], ("37060",))
         mock_destination_providers.assert_called_once_with("영주")
         mock_attach_arrivals.assert_called_once()
+
+    @patch("services.bus_service._attach_search_arrivals", return_value=0)
+    @patch("services.bus_service._search_destination_route_candidate")
+    @patch("services.bus_service._get_cached_stop_routes")
+    @patch("services.bus_service._get_cached_nearby_stops", return_value=[])
+    def test_selected_destination_stop_uses_reverse_route_search_without_radius(
+        self,
+        _mock_nearby_stops,
+        mock_stop_routes,
+        mock_search_candidate,
+        _mock_attach_arrivals,
+    ):
+        route = {
+            "route_id": "ROUTE-33",
+            "city_code": "37060",
+            "bus_number": "33",
+        }
+        mock_stop_routes.return_value = ([route], [])
+        mock_search_candidate.return_value = ({
+            "route_id": "ROUTE-33",
+            "city_code": "37060",
+            "route_key": "37060:ROUTE-33",
+            "bus_number": "33",
+            "boarding_stop": {
+                "id": "BOARDING",
+                "city_code": "37060",
+                "name": "승차 정류장",
+                "distance_m": 850,
+            },
+            "destination_stop": {
+                "id": "DESTINATION",
+                "name": "영주역",
+            },
+            "stops_between": 4,
+            "arrival_minutes": None,
+        }, False)
+
+        result = search_bus_routes(
+            36.891,
+            128.733,
+            "영주",
+            destination_stop_id="DESTINATION",
+            destination_city_code="37060",
+        )
+
+        self.assertEqual(result["search_mode"], "destination_stop")
+        self.assertIsNone(result["origin_search_radius_m"])
+        self.assertEqual(result["routes"][0]["boarding_stop"]["distance_m"], 850)
+        self.assertEqual(result["route_count"], 1)
 
 
 if __name__ == "__main__":

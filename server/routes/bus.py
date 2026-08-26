@@ -11,6 +11,7 @@ if __package__ == "server.routes":
         get_nearby_bus_overview,
         get_nearby_stops,
         get_stop_routes,
+        search_destination_stops,
         search_bus_routes,
     )
 else:
@@ -22,6 +23,7 @@ else:
         get_nearby_bus_overview,
         get_nearby_stops,
         get_stop_routes,
+        search_destination_stops,
         search_bus_routes,
     )
 
@@ -189,11 +191,42 @@ def _parse_bus_search():
             400,
         )
 
+    destination_stop_id = (
+        request.args.get("destination_stop_id", "").strip() or None
+    )
+    destination_city_code = (
+        request.args.get("destination_city_code", "").strip() or None
+    )
+    if (destination_stop_id is None) != (destination_city_code is None):
+        return None, _error_response(
+            "INVALID_DESTINATION_STOP",
+            "도착 정류장 ID와 도시 코드를 함께 입력해 주세요.",
+            400,
+        )
+    if destination_stop_id is not None and (
+        not destination_stop_id.isalnum() or len(destination_stop_id) > 30
+    ):
+        return None, _error_response(
+            "INVALID_DESTINATION_STOP",
+            "도착 정류장 ID가 올바르지 않습니다.",
+            400,
+        )
+    if destination_city_code is not None and (
+        not destination_city_code.isdigit() or len(destination_city_code) > 9
+    ):
+        return None, _error_response(
+            "INVALID_DESTINATION_STOP",
+            "도착 정류장 도시 코드가 올바르지 않습니다.",
+            400,
+        )
+
     return (
         *location,
         destination,
         origin_stop_id,
         origin_city_code,
+        destination_stop_id,
+        destination_city_code,
     ), None
 
 
@@ -375,6 +408,55 @@ def stop_routes():
     })
 
 
+@bus_blueprint.get("/destination-stops")
+def destination_stops():
+    location, error = _parse_location()
+    if error is not None:
+        return error
+
+    destination = request.args.get("destination", "").strip()
+    if not destination:
+        return _error_response(
+            "MISSING_DESTINATION",
+            "도착지를 입력해 주세요.",
+            400,
+        )
+    if len(destination) > 80 or not any(
+        character.isalnum() for character in destination
+    ):
+        return _error_response(
+            "INVALID_DESTINATION",
+            "도착지는 80자 이하로 입력해 주세요.",
+            400,
+        )
+
+    try:
+        result = search_destination_stops(
+            *location,
+            destination,
+        )
+    except BusConfigurationError:
+        return _error_response(
+            "BUS_API_KEY_MISSING",
+            "서버에 버스 API 키가 설정되지 않았습니다.",
+            500,
+        )
+    except BusServiceError:
+        return _error_response(
+            "BUS_DATA_UNAVAILABLE",
+            "도착지의 버스정류장을 불러오지 못했습니다.",
+            502,
+        )
+
+    return jsonify({
+        "success": True,
+        "data": result,
+        "message": "도착지 기준 버스정류장을 조회했습니다.",
+        "source": "국토교통부 TAGO",
+        "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    })
+
+
 @bus_blueprint.get("/search")
 def search_direct_bus_routes():
     search_query, error = _parse_bus_search()
@@ -387,6 +469,8 @@ def search_direct_bus_routes():
         destination,
         origin_stop_id,
         origin_city_code,
+        destination_stop_id,
+        destination_city_code,
     ) = search_query
     try:
         result = search_bus_routes(
@@ -395,6 +479,8 @@ def search_direct_bus_routes():
             destination,
             origin_stop_id,
             origin_city_code,
+            destination_stop_id,
+            destination_city_code,
         )
     except BusConfigurationError:
         return _error_response(
