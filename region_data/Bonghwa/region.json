@@ -1,8 +1,0 @@
-{
-  "id": "bonghwa",
-  "name": "봉화군",
-  "province": "경상북도",
-  "representative_location": {"latitude": 36.89101, "longitude": 128.7331261},
-  "representative_location_name": "봉화군청",
-  "weather_grid": {"nx": 90, "ny": 113}
-}
